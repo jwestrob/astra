@@ -5,7 +5,7 @@
 	
 ## Overview
 
-Astra is a Python package designed to facilitate bioinformatic workflows involving Hidden Markov Models (HMMs). It serves as a wrapper around [PyHMMER](https://pyhmmer.readthedocs.io/en/stable/index.html) and [HMMER](http://hmmer.org/), as well as a . It automates the process of downloading, installing, and searching custom or pre-installed HMM databases. Astra aims to streamline bioinformatic analyses, allowing for greater flexibility and ease of use.
+Astra is a Python package designed to facilitate bioinformatic workflows involving Hidden Markov Models (HMMs). It serves as a wrapper around [PyHMMER](https://pyhmmer.readthedocs.io/en/stable/index.html) and [HMMER](http://hmmer.org/), as well as a compendium of dowloadable HMM databases. It automates the process of downloading and searching with custom or pre-installed HMM databases. Astra aims to streamline bioinformatic analyses, allowing for greater flexibility and ease of use. I intend to make Astra into a capable command-line tool as well as a python library.
 
 ## Features
 
