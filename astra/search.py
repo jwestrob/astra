@@ -8,6 +8,7 @@ import subprocess
 import collections
 import shutil
 from astra import initialize
+from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 
