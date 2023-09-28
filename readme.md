@@ -1,6 +1,8 @@
 
 # Astra: Scalable HMM-based Sequence Search and Retrieval
 
+![Logo](img/astra_logo.png)
+
 ## Overview
 
 Astra is a Python package designed to facilitate bioinformatic workflows, especially those involving Hidden Markov Models (HMMs). It automates the process of downloading, installing, and searching custom or pre-installed HMM databases. Astra aims to streamline bioinformatic analyses, allowing for greater flexibility and ease of use.
@@ -14,7 +16,7 @@ Astra is a Python package designed to facilitate bioinformatic workflows, especi
 
 ## Installation
 
-To install the package, use pip:
+To install the package, use pip (Not yet live! Don't try this! If you do I'll make fun of you because you didn't read!:
 
 ```bash
 pip install astra
