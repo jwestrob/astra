@@ -140,11 +140,11 @@ def parse_protein_input(prot_in, threads):
         protein_dict = {}
 
         # Initialize ThreadPoolExecutor
-        with ProcessPoolExecutor(threads) as executor:
-            # Parallelize the loop
-            results = executor.map(process_fasta, 
-                [os.path.join(prot_in, x) for x in os.listdir(prot_in)]
-                )
+        #with ProcessPoolExecutor(threads) as executor:
+        # Parallelize the loop
+        results = list(map(process_fasta, 
+            [os.path.join(prot_in, x) for x in os.listdir(prot_in)]
+            ))
 
         # Populate the protein_dict
         for fasta_path, sequences in results:
