@@ -9,10 +9,10 @@ Astra is a Python package designed to facilitate bioinformatic workflows involvi
 
 ## Features
 
+(Just what I've implemented so far! This list will grow!)
+
 - **Initialize**: Download and install HMM databases directly from various sources with a simple command.
 - **Search**: Perform advanced HMM searches on sequence data with customizable options.
-- **Flexibility**: Combine both custom and pre-installed HMM databases in a single search run.
-- **Configurable**: Customize your workflow with a variety of command-line options.
 
 ## Installation
 
