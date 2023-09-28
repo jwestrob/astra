@@ -104,7 +104,8 @@ def parse_hmms(hmm_in):
             print("hmm_in directory is empty.")
             sys.exit(1)
         # Parse each HMM file in the directory
-        for hmmfile in os.listdir(hmm_in):
+        print("Parsing HMMs...")
+        for hmmfile in tqdm(os.listdir(hmm_in)):
             with pyhmmer.plan7.HMMFile(os.path.join(hmm_in, hmmfile)) as hmm_file:
                 hmm = hmm_file.read()
             hmms.append(hmm)
@@ -343,6 +344,7 @@ def main(args):
             for db in parsed_json['db_urls']:
                 if db['molecule_type'] == 'protein' and db['installed']:
                     installed_hmm_names.append(db['name'])
+
 
         for hmm_db in installed_hmm_names:
             installed_hmm_in = next((item for item in parsed_json['db_urls'] if item["name"] == hmm_db), None)
