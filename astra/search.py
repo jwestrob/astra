@@ -143,7 +143,9 @@ def parse_protein_input(prot_in, threads):
         #with ProcessPoolExecutor(threads) as executor:
         # Parallelize the loop
         results = list(map(process_fasta, 
-            [os.path.join(prot_in, x) for x in os.listdir(prot_in)]
+            tqdm(
+                [os.path.join(prot_in, x) for x in os.listdir(prot_in)]
+                )
             ))
 
         # Populate the protein_dict
