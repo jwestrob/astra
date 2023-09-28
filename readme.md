@@ -1,5 +1,5 @@
 
-# Astra: Advanced Search Tools for Running Analyses
+# Astra: Scalable HMM-based Sequence Search and Retrieval
 
 ## Overview
 
