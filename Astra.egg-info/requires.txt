@@ -1,0 +1,5 @@
+pyhmmer
+pandas
+biopython
+pathos
+tqdm
