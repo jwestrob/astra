@@ -8,6 +8,8 @@ import subprocess
 import collections
 import shutil
 from astra import initialize
+from concurrent.futures import ThreadPoolExecutor
+
 
 def get_results_attributes(result):
     bitscore = result.bitscore
@@ -118,7 +120,13 @@ def parse_hmms(hmm_in):
     
     return hmms
 
-def parse_protein_input(prot_in):
+def process_fasta(fasta_file):
+    # Function to handle each file for parallelism
+    with pyhmmer.easel.SequenceFile(os.path.join(prot_in, fasta_file), digital=True) as seq_file:
+        sequences = seq_file.read_block()
+    return os.path.join(prot_in, fasta_file), sequences
+
+def parse_protein_input(prot_in, threads):
     protein_dict = {}  # Initialize an empty dictionary to store parsed proteins
     
     # Check if prot_in is a directory or a single file
@@ -126,11 +134,18 @@ def parse_protein_input(prot_in):
         if not os.listdir(prot_in):
             print("prot_in directory is empty.")
             sys.exit(1)
-        # Parse each protein FASTA file in the directory
-        for fasta_file in os.listdir(prot_in):
-            with pyhmmer.easel.SequenceFile(os.path.join(prot_in, fasta_file), digital=True) as seq_file:
-                sequences = seq_file.read_block()
-            protein_dict[os.path.join(prot_in, fasta_file)] = sequences
+
+        # Initialize an empty dictionary to hold protein sequences
+        protein_dict = {}
+
+        # Initialize ThreadPoolExecutor
+        with ThreadPoolExecutor(threads) as executor:
+            # Parallelize the loop
+            results = executor.map(process_fasta, os.listdir(prot_in))
+
+        # Populate the protein_dict
+        for fasta_path, sequences in results:
+            protein_dict[fasta_path] = sequences
     elif os.path.isfile(prot_in):
         if os.path.getsize(prot_in) == 0:
             print("prot_in file is empty.")
@@ -285,7 +300,7 @@ def main(args):
 
 
     #Check protein input and parse
-    protein_dict = parse_protein_input(prot_in)
+    protein_dict = parse_protein_input(prot_in, threads)
 
     if hmm_in is not None:
         print("Searching with user-provided HMM(s)...")
