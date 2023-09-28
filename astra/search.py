@@ -8,7 +8,7 @@ import subprocess
 import collections
 import shutil
 from astra import initialize
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 
 def get_results_attributes(result):
@@ -140,7 +140,7 @@ def parse_protein_input(prot_in, threads):
         protein_dict = {}
 
         # Initialize ThreadPoolExecutor
-        with ThreadPoolExecutor(threads) as executor:
+        with ProcessPoolExecutor(threads) as executor:
             # Parallelize the loop
             results = executor.map(process_fasta, 
                 [os.path.join(prot_in, x) for x in os.listdir(prot_in)]
