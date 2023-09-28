@@ -127,6 +127,7 @@ def process_fasta(fasta_file):
     return fasta_file, sequences
 
 def parse_protein_input(prot_in, threads):
+    print("Parsing protein input sequences...")
     protein_dict = {}  # Initialize an empty dictionary to store parsed proteins
     
     # Check if prot_in is a directory or a single file
