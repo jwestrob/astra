@@ -9,7 +9,6 @@ setup(
         'pyhmmer',
         'pandas',
         'biopython',
-        'pathos',
         'tqdm'
     ],
         entry_points={
