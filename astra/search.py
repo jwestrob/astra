@@ -302,7 +302,6 @@ def main(args):
         all_results_df.to_csv(os.path.join(outdir,'all_hits_df.tsv'), sep='\t', index=False)
 
     if installed_hmms is not None:
-        print("Searching with pre-installed HMMMs...")
         #check HMM input and parse
 
         # Step 1: Get paths for installed HMM databases
@@ -311,7 +310,7 @@ def main(args):
             installed_hmm_names = installed_hmms.split(',')
         else:
             installed_hmm_names = [installed_hmms]  # Single element list
-
+        print("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
         #Load JSON with database and procedural information
         parsed_json = initialize.load_json()
 
