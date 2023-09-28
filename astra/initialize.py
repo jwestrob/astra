@@ -125,6 +125,8 @@ def download_progress_hook(count, block_size, total_size):
 
 def install_databases(parsed_json, db_name, db_path):
     for db in parsed_json['db_urls']:
+        if db['installed'] == True or db['installation_dir'] != '':
+            continue
         if db['name'] == db_name:
             target_folder = os.path.abspath(os.path.join(db_path, db_name))  # Use absolute path
             
@@ -155,7 +157,8 @@ def install_databases(parsed_json, db_name, db_path):
             if "github.com" in url:
                 # Special case for GitHub URLs
                 url = url.rstrip("/")
-                repo_api_url = url.replace("github.com", "api.github.com/repos").replace("/tree/master", "/contents")
+                branch_name = "main"  # or get it dynamically
+                repo_api_url = url.replace(f"github.com", f"api.github.com/repos").replace(f"/tree/{branch_name}", "/contents")
                 response = requests.get(repo_api_url)
                 if response.status_code == 200:
                     files = response.json()
@@ -264,7 +267,7 @@ def main(args):
         hmms = hmms.split(',')
     else:
         hmms = [hmms]
-        
+
     # Install the databases
     # Iterate through user-provided database names or special keywords for batch installation
     for db_name in hmms:

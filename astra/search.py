@@ -97,6 +97,7 @@ def parse_hmms(hmm_in):
     # Check if hmm_in is a directory or a single file
     if os.path.isdir(hmm_in):
         if not os.listdir(hmm_in):
+            print(hmm_in)
             print("hmm_in directory is empty.")
             sys.exit(1)
         # Parse each HMM file in the directory
@@ -323,23 +324,23 @@ def main(args):
                 if db['molecule_type'] == 'protein' and db['installed']:
                     installed_hmm_names.append(db['name'])
 
-            for hmm_db in installed_hmm_names:
-                installed_hmm_in = next((item for item in parsed_json['db_urls'] if item["name"] == hmm_db), None)
-                if installed_hmm_in is not None:
-                    installation_dir = installed_hmm_in['installation_dir']
-                    db_hmms = parse_hmms()
-                else:
-                    #No installation_dir specified; print this and move on
-                    print("No installation_dir specified for db " + hmm_db)
-                    continue
+        for hmm_db in installed_hmm_names:
+            installed_hmm_in = next((item for item in parsed_json['db_urls'] if item["name"] == hmm_db), None)
+            if installed_hmm_in is not None:
+                installation_dir = installed_hmm_in['installation_dir']
+                db_hmms = parse_hmms(installation_dir)
+            else:
+                #No installation_dir specified; print this and move on
+                print("No installation_dir specified for db " + hmm_db)
+                continue
 
-                results_dataframes_dict = hmmsearch(protein_dict, hmms, threads, hmmsearch_options)
+            results_dataframes_dict = hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options)
 
-                if args.write_seqs:
-                    extract_sequences(results_dataframes_dict, outdir)
+            if args.write_seqs:
+                extract_sequences(results_dataframes_dict, outdir)
 
-                db_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
-                all_results_df.to_csv(os.path.join(outdir,hmm_db + '_hits_df.tsv'), sep='\t', index=False)
+            db_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
+            db_results_df.to_csv(os.path.join(outdir,hmm_db + '_hits_df.tsv'), sep='\t', index=False)
 
 if __name__ == "__main__":
     main()
