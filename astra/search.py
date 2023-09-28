@@ -68,7 +68,8 @@ def hmmsearch(protein_dict, hmms, threads, options):
     #and we only specify one bitscore threshold
     hmmsearch_kwargs = define_kwargs(options)
 
-    for fasta_file, sequences in protein_dict.items():
+    print("Searching...")
+    for fasta_file, sequences in tqdm(protein_dict.items()):
         results = []
         
         # Run the HMMs
