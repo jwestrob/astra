@@ -1,7 +1,7 @@
 
 # Astra: Scalable HMM-based Sequence Search and Retrieval
 
-![Logo](img/astra_logo.png)
+<img src="img/astra_logo.png" width="50%">
 
 ## Overview
 
