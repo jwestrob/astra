@@ -122,9 +122,9 @@ def parse_hmms(hmm_in):
 
 def process_fasta(fasta_file):
     # Function to handle each file for parallelism
-    with pyhmmer.easel.SequenceFile(os.path.join(prot_in, fasta_file), digital=True) as seq_file:
+    with pyhmmer.easel.SequenceFile(fasta_file, digital=True) as seq_file:
         sequences = seq_file.read_block()
-    return os.path.join(prot_in, fasta_file), sequences
+    return fasta_file, sequences
 
 def parse_protein_input(prot_in, threads):
     protein_dict = {}  # Initialize an empty dictionary to store parsed proteins
@@ -141,7 +141,9 @@ def parse_protein_input(prot_in, threads):
         # Initialize ThreadPoolExecutor
         with ThreadPoolExecutor(threads) as executor:
             # Parallelize the loop
-            results = executor.map(process_fasta, os.listdir(prot_in))
+            results = executor.map(process_fasta, 
+                [os.path.join(prot_in, x) for x in os.listdir(prot_in)]
+                )
 
         # Populate the protein_dict
         for fasta_path, sequences in results:
