@@ -123,7 +123,18 @@ def download_progress_hook(count, block_size, total_size):
     sys.stdout.write("\r%2d%%" % percent)
     sys.stdout.flush()
 
-def install_databases(parsed_json, db_name, db_path):
+def install_databases(parsed_json=None, db_name, db_path=None):
+
+    #Did you call this as a function from an external script?
+    #Want to model that function call as 'intialize.install_databases(db_name)'
+    #So must leave out parsed_json/db_path
+    if parsed_json = None:
+        parsed_json = load_json()
+    if db_path = None:
+        config = load_config()
+        db_path = config['db_path']        
+
+
     for db in parsed_json['db_urls']:
         if db['installed'] == True or db['installation_dir'] != '':
             continue
