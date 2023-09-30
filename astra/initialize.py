@@ -128,7 +128,7 @@ def install_databases(parsed_json=None, db_name, db_path=None):
     #Did you call this as a function from an external script?
     #Want to model that function call as 'intialize.install_databases(db_name)'
     #So must leave out parsed_json/db_path
-    if parsed_json = None:
+    if parsed_json == None:
         parsed_json = load_json()
     if db_path = None:
         config = load_config()
