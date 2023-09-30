@@ -123,7 +123,7 @@ def download_progress_hook(count, block_size, total_size):
     sys.stdout.write("\r%2d%%" % percent)
     sys.stdout.flush()
 
-def install_databases(parsed_json=None, db_name, db_path=None):
+def install_databases(parsed_json=None,  db_path=None, db_name):
 
     #Did you call this as a function from an external script?
     #Want to model that function call as 'intialize.install_databases(db_name)'
@@ -286,13 +286,13 @@ def main(args):
         if db_name == 'all_prot':
             for db in parsed_json['db_urls']:
                 if db['molecule_type'] == 'protein' and not db['installed']:
-                    install_databases(parsed_json, db['name'], db_path)
+                    install_databases(parsed_json, db_path, db['name'])
                     
         # Case for installing all nucleotide databases
         elif db_name == 'all_nuc':
             for db in parsed_json['db_urls']:
                 if db['molecule_type'] == 'nucleotide' and not db['installed']:
-                    install_databases(parsed_json, db['name'], db_path)
+                    install_databases(parsed_json, db_path, db['name'])
                     
         # Case for installing a specific database
         else:
