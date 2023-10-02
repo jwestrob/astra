@@ -74,6 +74,7 @@ def hmmsearch(protein_dict, hmms, threads, options):
     hmmsearch_kwargs = define_kwargs(options)
 
     if hmmsearch_kwargs['bit_cutoffs'] != None:
+        print(hmmsearch_kwargs)
         #pyHMMER rightly throws an error when you try to use thresholds that don't exist in the model.
         #Let's separate these out because often a single set of HMMs will contain thresholded
         #as well as unthresholded models.
