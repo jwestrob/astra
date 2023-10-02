@@ -2,7 +2,7 @@
 import os
 import sys
 import argparse
-import pandas as pd
+import pandas as pd, numpy as np
 import pyhmmer
 import subprocess
 import collections
@@ -77,14 +77,21 @@ def hmmsearch(protein_dict, hmms, threads, options):
         #pyHMMER rightly throws an error when you try to use thresholds that don't exist in the model.
         #Let's separate these out because often a single set of HMMs will contain thresholded
         #as well as unthresholded models.
-
+        print("Separating thresholded and non-thresholded HMMs...")
+        
         with ProcessPoolExecutor(threads) as executor:
-            # Filter HMMs with thresholds
-            hmms_with_thresholds = list(executor.map(has_thresholds, hmms))
-            hmms_with_thresholds = [hmm for hmm, has_thresh in zip(hmms, hmms_with_thresholds) if has_thresh]
-            
-            # Filter HMMs without thresholds
-            hmms_without_thresholds = [hmm for hmm in hmms if hmm not in hmms_with_thresholds]
+            # Create a Boolean mask indicating which HMMs have thresholds
+            has_thresholds_mask = list(executor.map(has_thresholds, hmms))
+
+            # Convert the mask to a NumPy array for efficient indexing
+            has_thresholds_mask_np = np.array(has_thresholds_mask)
+
+            # Filter HMMs with thresholds using the mask
+            hmms_with_thresholds = np.array(hmms)[has_thresholds_mask_np].tolist()
+
+            # Filter HMMs without thresholds using the inverse of the mask
+            hmms_without_thresholds = np.array(hmms)[~has_thresholds_mask_np].tolist()
+
 
 
         hmmsearch_kwargs_nothreshold = hmmsearch_kwargs
@@ -93,35 +100,39 @@ def hmmsearch(protein_dict, hmms, threads, options):
         #Remove evalue and bitscore thresholds that might be otherwise imposed when running with predefined cutoff scores
         #And remove other thresholds because pyhmmer gets mad if you specify nonetype
         hmmsearch_kwargs = {'bit_cutoffs':hmmsearch_kwargs['bit_cutoffs']}
-
+    else:
+        hmms_without_thresholds = hmms
+        hmms_with_thresholds = None
 
     print("Searching...")
     for fasta_file, sequences in tqdm(protein_dict.items()):
         results = []
         
-        # Run the thresholded HMMs
-        for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
-            cog = hits.query_name.decode()
-            for hit in hits:
-                if hit.included:
-                    hit_name = hit.name.decode()
-                    full_bitscore = hit.score 
-                    full_evalue = hit.evalue
-                    for domain in hit.domains.reported:
-                        results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
-                              domain.i_evalue, domain.env_from, domain.env_to, domain.score))
+        if hmms_with_thresholds is not None:
+            # Run the thresholded HMMs
+            for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
+                cog = hits.query_name.decode()
+                for hit in hits:
+                    if hit.included:
+                        hit_name = hit.name.decode()
+                        full_bitscore = hit.score 
+                        full_evalue = hit.evalue
+                        for domain in hit.domains.reported:
+                            results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
+                                  domain.i_evalue, domain.env_from, domain.env_to, domain.score))
 
-        #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
-        for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs_nothreshold):
-            cog = hits.query_name.decode()
-            for hit in hits:
-                if hit.included:
-                    hit_name = hit.name.decode()
-                    full_bitscore = hit.score 
-                    full_evalue = hit.evalue
-                    for domain in hit.domains.reported:
-                        results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
-                              domain.i_evalue, domain.env_from, domain.env_to, domain.score))
+        if hmms_without_thresholds is not None:
+            #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
+            for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs_nothreshold):
+                cog = hits.query_name.decode()
+                for hit in hits:
+                    if hit.included:
+                        hit_name = hit.name.decode()
+                        full_bitscore = hit.score 
+                        full_evalue = hit.evalue
+                        for domain in hit.domains.reported:
+                            results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
+                                  domain.i_evalue, domain.env_from, domain.env_to, domain.score))
                     
         # Convert the results to a DataFrame
         #Is it necessary to cast it as a list?
