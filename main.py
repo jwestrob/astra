@@ -49,10 +49,6 @@ def main():
     parser_search.add_argument("--cut_nc", action="store_true", default=False, help="Use built-in NC thresholds. Default: False")
     parser_search.add_argument("--cut_tc", action="store_true", default=False, help="Use built-in TC thresholds. Default: False")   
 
-    #Z (conditioning parameter)
-    parser_search.add_argument("--Z", type=int, default=None, help="The effective number of comparisons done, for E-value calculation. Default behavior: auto-detect by counting the number of sequences queried.")
-
-
     parser_search.add_argument("--write_seqs", action="store_true", default=False, help="Obtain sequences for each HMM and write them to a folder within 'outdir'. Default: False")
     parser_search.add_argument('--threads', type=int, help="Number of threads to use for HMMsearch. Default behavior: Choose appropriate number of threads based on psutil.cpu_count and number of query sequences", default=0) 
 
