@@ -56,7 +56,3 @@ The `initialize.py` script is designed to manage the installation and querying o
 
 If you want to customize the database installation directory, modify the `db_path` field in `astra_config.json`.
 
-## Note
-
-This guide assumes that you are familiar with Hidden Markov Models, database management, and have a working Python environment.
-

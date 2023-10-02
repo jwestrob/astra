@@ -23,6 +23,7 @@ def main():
     parser_search = subparsers.add_parser('search', description='Search protein sequences with HMM profiles.')
     parser_search.add_argument('--hmm_in', default=None, help='Input file/directory for HMM profiles.')
     parser_search.add_argument('--prot_in', required=True, help='Input file for protein sequences.')
+    parser_search.add_argument('--meta', default=False, help='Indicates input files are metagenomes; changes behavior to compensate for large input file size. See docs for details')
     parser_search.add_argument('--outdir', required=True, help='Output directory for results.')
     parser_search.add_argument('--installed_hmms', default=None, type=str, help='Comma-separated list of installed HMM databases to use. If you specify a database that is not installed, Astra will not utilize it here. Go install it with initialize')
 

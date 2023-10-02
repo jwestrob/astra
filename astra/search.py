@@ -68,12 +68,43 @@ def hmmsearch(protein_dict, hmms, threads, options):
     #and we only specify one bitscore threshold
     hmmsearch_kwargs = define_kwargs(options)
 
+    if hmmsearch_kwargs['bit_cutoffs'] != None:
+        #pyHMMER rightly throws an error when you try to use thresholds that don't exist in the model.
+        #Let's separate these out because often a single set of HMMs will contain thresholded
+        #as well as unthresholded models.
+
+        #User is still responsible for specifying the right model though!! I'm not gonna hold your hand that much
+        hmms_with_thresholds = list(filter(lambda x: x.gathering_available is not None or \
+                                                     x.noise_available is not None or \
+                                                     x.trusted_available is not None,
+                                                     hmms))
+        hmms_without_thresholds = list(filter(lambda x: x not in hmms_with_thresholds, hmms))
+
+        hmmsearch_kwargs_nothreshold = hmmsearch_kwargs
+        hmmsearch_kwargs_nothreshold['bit_cutoffs'] = None
+
+        #Remove evalue and bitscore thresholds that might be otherwise imposed when running with predefined cutoff scores
+        hmmsearch_kwargs = {key: None for key in ['domE', 'domT', 'incdomE', 'incdomT', 'bitscore', 'incE', 'incT']}
+
+
     print("Searching...")
     for fasta_file, sequences in tqdm(protein_dict.items()):
         results = []
         
-        # Run the HMMs
-        for hits in pyhmmer.hmmsearch(hmms, sequences, cpus=threads, **hmmsearch_kwargs):
+        # Run the thresholded HMMs
+        for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
+            cog = hits.query_name.decode()
+            for hit in hits:
+                if hit.included:
+                    hit_name = hit.name.decode()
+                    full_bitscore = hit.score 
+                    full_evalue = hit.evalue
+                    for domain in hit.domains.reported:
+                        results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
+                              domain.i_evalue, domain.env_from, domain.env_to, domain.score))
+
+        #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
+        for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs_nothreshold):
             cog = hits.query_name.decode()
             for hit in hits:
                 if hit.included:
@@ -88,8 +119,15 @@ def hmmsearch(protein_dict, hmms, threads, options):
         #Is it necessary to cast it as a list?
         result_df = pd.DataFrame(list(map(get_results_attributes, results)), columns=["sequence_id", "hmm_name", "bitscore", "evalue","c_evalue", "i_evalue", "env_from", "env_to", "dom_bitscore"])
         
-        # Store the DataFrame in the dictionary
-        results_dataframes[fasta_file] = result_df
+        if meta == False:
+            # Store the DataFrame in the dictionary
+            results_dataframes[fasta_file] = result_df
+        else:
+            try:
+                result_df.to_csv(os.path.join(outdir, fasta_file + '_' + hmm_db + 'results.tsv'), sep='\t', index=False)
+            except Error as e:
+                print(Error)
+                result_df.to_csv(fasta_file + '_' + hmm_db + '.results.tsv', sep='\t', index=False)
     
     return results_dataframes
 
@@ -106,7 +144,7 @@ def parse_hmms(hmm_in):
             sys.exit(1)
         # Parse each HMM file in the directory
         print("Parsing HMMs...")
-        for hmmfile in tqdm(os.listdir(hmm_in)):
+        for hmmfile in tqdm(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in))):
             with pyhmmer.plan7.HMMFile(os.path.join(hmm_in, hmmfile)) as hmm_file:
                 hmm = hmm_file.read()
             hmms.append(hmm)
@@ -142,9 +180,9 @@ def parse_protein_input(prot_in, threads):
         # Initialize an empty dictionary to hold protein sequences
         protein_dict = {}
 
-        # Initialize ThreadPoolExecutor
-        #with ProcessPoolExecutor(threads) as executor:
-        # Parallelize the loop
+        #I formatted this as a loop because I was trying to parallelize it
+        #but the sequence object for pyHMMER doesn't have pickle protocol support
+        #Anyway I left it as a weird map with a tqdm you're welcome enjoy
         results = list(map(process_fasta, 
             tqdm(
                 [os.path.join(prot_in, x) for x in os.listdir(prot_in)]
@@ -256,7 +294,15 @@ def main(args):
     # Required arguments
     hmm_in = args.hmm_in
     prot_in = args.prot_in 
+
+    #boolean; indicates input is metagenomic files
+    global meta
+    meta = args.meta
+
+    #Set this as global; we don't want to have to pass it
+    global outdir 
     outdir = args.outdir
+
     installed_hmms = args.installed_hmms
 
     # Optional arguments
@@ -296,7 +342,7 @@ def main(args):
     if sum(specified_flags) > 1:
         print("Error: You can only specify one of --bitscore, --cut_nc, --cut_tc, and --cut_ga.")
         print("If you specify a bitscore threshold and a pre-defined cutoff (e.g. --cut_ga) the pre-defined cutoff will be used")
-        print("where available, otherwise the bitscore threshold will be used.")
+        print("where available, otherwise the specified bitscore threshold will be used.")
 
     # Check if the output directory already exists
     if not os.path.exists(outdir):
@@ -357,13 +403,20 @@ def main(args):
                 print("No installation_dir specified for db " + hmm_db)
                 continue
 
-            results_dataframes_dict = hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options)
+            #if we're in meta mode, we don't want to keep all that shit in memory
+            #and the hmmsearch function will write a file for each DB and each protein file
+            #because they're huge
+            if not meta:
+                results_dataframes_dict = hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options)
+            else:
+                hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options)
 
             if args.write_seqs:
                 extract_sequences(results_dataframes_dict, outdir)
 
-            db_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
-            db_results_df.to_csv(os.path.join(outdir,hmm_db + '_hits_df.tsv'), sep='\t', index=False)
+            if not meta:
+                db_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
+                db_results_df.to_csv(os.path.join(outdir,hmm_db + '_hits_df.tsv'), sep='\t', index=False)
 
 if __name__ == "__main__":
     main()

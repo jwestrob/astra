@@ -8,6 +8,7 @@ import argparse
 import subprocess
 import textwrap
 from tqdm import tqdm 
+import pandas as pd
 
 class TqdmUpTo(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
@@ -123,20 +124,25 @@ def download_progress_hook(count, block_size, total_size):
     sys.stdout.write("\r%2d%%" % percent)
     sys.stdout.flush()
 
-def install_databases(db_name, parsed_json=None,  db_path=None):
-
-    #Did you call this as a function from an external script?
-    #Want to model that function call as 'intialize.install_databases(db_name)'
-    #So must leave out parsed_json/db_path
-    if parsed_json is None:
-        parsed_json = load_json()
-    if db_path is None:
-        config = load_config()
-        db_path = config['db_path']        
+def install_KOFAM():
+    
+    #Separate function to install KOFAM because we need to manually add bitscore cutoffs to HMM models
+    #which drastically reduces size of the output (288M from a 36M metaproteome vs. Pfam's 24M output!!)
+    db_name = 'KOFAM'
+    parsed_json = load_json()
+    config = load_config()
+    db_path = config['db_path']    
 
 
     for db in parsed_json['db_urls']:
-        if db['installed'] == True or db['installation_dir'] != '':
+        #Look. I have to organize this as a for loop because of the JSON structure.
+        #I know we're only accessing one element. Leave me alone
+        #Feel free to tell me alternatives if you read this far and know what to do! 
+        #I'm too lazy to ask GPT. This works just fine
+
+        if (db['installed'] == True and db['installation_dir'] != '') and db['name'] == db_name:
+            #Database is already installed; just say so.
+            print("Database {} already installed.".format(db['name']))
             continue
         if db['name'] == db_name:
             target_folder = os.path.abspath(os.path.join(db_path, db_name))  # Use absolute path
@@ -165,11 +171,158 @@ def install_databases(db_name, parsed_json=None,  db_path=None):
             
             # Download the database
             url = db['url']
+
+            file_name = url.split('/')[-1]
+            download_path = os.path.join(target_folder, file_name)
+            
+            # Download the file with progress bar
+            with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
+                urllib.request.urlretrieve(url, download_path, reporthook=t.update_to)
+            
+            # Extract the file if it's a tar archive
+            if tarfile.is_tarfile(download_path):
+                print(f"Extracting {file_name}...")
+                with tarfile.open(download_path, 'r') as tar_ref:
+                    tar_ref.extractall(target_folder)
+                os.remove(download_path)  # Remove the original tar file
+                
+                # Check if a single directory was extracted
+                extracted_files = os.listdir(target_folder)
+                if len(extracted_files) == 1 and os.path.isdir(os.path.join(target_folder, extracted_files[0])):
+                    single_dir = os.path.join(target_folder, extracted_files[0])
+                    for file_to_move in os.listdir(single_dir):
+                        shutil.move(os.path.join(single_dir, file_to_move), target_folder)
+                    os.rmdir(single_dir)  # Remove the now-empty directory
+            
+            print(f"{db_name} successfully downloaded and extracted.")
+
+            #Mark installation as complete in hmm_databases.json
+            db['installed'] = True
+            db["installation_dir"] = target_folder  # Add installation directory
+
+            # Write changes to the JSON file 
+            json_path = os.path.join(db_path, 'hmm_databases.json')  # Use db_path here
+            with open(json_path, 'w') as f:
+                json.dump(parsed_json, f, indent=4)
+                
+    ####
+    #Now we've installed the HMMs, let's grab profiles.gz.
+    ####
+
+    print("Downloading KOFAM thresholds list...")
+    ko_list_url = 'https://www.genome.jp/ftp/db/kofam/ko_list.gz'
+    file_name = ko_list_url.split('/')[-1]
+    ko_list_path = os.path.join(db_path, file_name)
+    # Download the file with progress bar
+    with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
+        urllib.request.urlretrieve(ko_list_url, ko_list_path, reporthook=t.update_to)
+
+    print("Decompressing ko_list...")
+    with gzip.open(ko_list_path, 'rb') as f_in:
+        with open(ko_list_path[:-3], 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+    print("Adding kofam bitscore thresholds to HMM files...")
+    #Now parse ko_list as a pandas DF
+    ko_list = pd.read_csv(os.path.join(db_path, 'ko_list'), sep='\t')
+    kofam_dir = os.path.join(db_path, 'KOFAM')
+    #Iterate only on rows of ko_list as all other HMMs will lack thresholds
+    for index, row in ko_list.iterrows():
+        threshold = row.threshold
+        knum = row.knum
+        #Get path to HMM file
+        hmm_file = os.path.join(kofam_dir,'{}.hmm'.format(knum))
+        #Add the threshold and overwrite the file!!
+        add_threshold(hmm_file, threshold)
+
+
+def add_threshold(hmm_file_path, threshold):
+    #Some thresholds in ko_list are specified for HMMs not provided by the package...
+    if not os.path.exists(hmm_file_path):
+        return
+
+    #I'm going to add the threshold in all three fields.
+    #I know it's unconventional but LEARN TO LIVE WITH IT
+
+    threshold_lines = [
+                       'GA    {} {};'.format(threshold, threshold),
+                       'TC    {} {};'.format(threshold, threshold), 
+                       'NC    {} {};'.format(threshold, threshold)
+                      ]
+    #parse HMM file
+    with open(hmm_file_path, 'r') as infile:
+        hmm_lines = [x.rstrip() for x in infile.readlines()]
+    
+    #Thresholds need to go on the line after 'CKSUM''
+    cksum_line = list(filter(lambda x: x.startswith('CKSUM'), hmm_lines))[0]
+    cksum_idx = hmm_lines.index(cksum_line)
+
+    #Insert the lines in the proper place; requires some fuckery
+    new_lines = hmm_lines
+    for line in reversed(threshold_lines):
+        new_lines.insert(cksum_idx + 1, line)
+
+    #Write the thresholded file to the same path as before
+    with open(hmm_file_path, 'w') as outfile:
+        for element in new_lines:
+            outfile.writelines(element + '\n')
+
+def install_databases(db_name, parsed_json=None,  db_path=None):
+
+    #Are you trying to install KOFAM? Let's have separate logic for that.
+    if db_name == 'KOFAM':
+        return install_KOFAM()
+
+    #Did you call this as a function from an external script?
+    #Want to model that function call as 'intialize.install_databases(db_name)'
+    #So must leave out parsed_json/db_path
+    if parsed_json is None:
+        parsed_json = load_json()
+    if db_path is None:
+        config = load_config()
+        db_path = config['db_path']      
+
+    for db in parsed_json['db_urls']:
+        if (db['installed'] == True and db['installation_dir'] != '') and db['name'] == db_name:
+            #Database is already installed; just say so.
+            print("Database {} already installed.".format(db['name']))
+            continue
+        if db['name'] == db_name:
+            target_folder = os.path.abspath(os.path.join(db_path, db_name))  # Use absolute path
+            
+            # Check if the folder exists and if it's empty
+            if os.path.exists(target_folder):
+                if len(os.listdir(target_folder)) != 0:
+                    print(f"Folder for {db_name} exists and is not empty. Skipping download.")
+                    if "installation_dir" not in db:
+                        db["installation_dir"] = target_folder
+                        # Update the JSON file to reflect the new installation_dir
+                        json_path = os.path.join(db_path, 'hmm_databases.json')  
+                        with open(json_path, 'w') as f:
+                            json.dump(parsed_json, f, indent=4)
+                    elif db['installation_dir'] == '':
+                        db["installation_dir"] = target_folder
+                        # Update the JSON file to reflect the new installation_dir
+                        json_path = os.path.join(db_path, 'hmm_databases.json')  
+                        with open(json_path, 'w') as f:
+                            json.dump(parsed_json, f, indent=4)
+                    return
+            else:
+                os.makedirs(target_folder, exist_ok=True)
+            
+            print(f"Downloading {db_name} to {target_folder}...")
+            
+            # Download the database
+            url = db['url']
+
             if "github.com" in url:
                 # Special case for GitHub URLs
                 url = url.rstrip("/")
-                branch_name = "main"  # or get it dynamically
-                repo_api_url = url.replace(f"github.com", f"api.github.com/repos").replace(f"/tree/{branch_name}", "/contents")
+                if 'Karthik' in db_name:
+                    #Hard-code this one because the directory structure is different compared to the other github repos 
+                    repo_api_url = 'https://api.github.com/repos/kanantharaman/metabolic-hmms/contents/'
+                else:
+                    repo_api_url = url.replace("github.com", "api.github.com/repos").replace("/tree/master", "/contents")
                 response = requests.get(repo_api_url)
                 if response.status_code == 200:
                     files = response.json()
@@ -191,7 +344,7 @@ def install_databases(db_name, parsed_json=None,  db_path=None):
                 file_name = url.split('/')[-1]
                 download_path = os.path.join(target_folder, file_name)
                 
-                # Download the file with progress
+                # Download the file with progress bar
                 with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
                     urllib.request.urlretrieve(url, download_path, reporthook=t.update_to)
                 
@@ -201,6 +354,14 @@ def install_databases(db_name, parsed_json=None,  db_path=None):
                     with tarfile.open(download_path, 'r') as tar_ref:
                         tar_ref.extractall(target_folder)
                     os.remove(download_path)  # Remove the original tar file
+                    
+                    # Check if a single directory was extracted
+                    extracted_files = os.listdir(target_folder)
+                    if len(extracted_files) == 1 and os.path.isdir(os.path.join(target_folder, extracted_files[0])):
+                        single_dir = os.path.join(target_folder, extracted_files[0])
+                        for file_to_move in os.listdir(single_dir):
+                            shutil.move(os.path.join(single_dir, file_to_move), target_folder)
+                        os.rmdir(single_dir)  # Remove the now-empty directory
 
                 # Extract the file if it's a gz archive
                 elif file_name.endswith('.gz'):
@@ -209,11 +370,16 @@ def install_databases(db_name, parsed_json=None,  db_path=None):
                         with open(download_path[:-3], 'wb') as f_out:
                             shutil.copyfileobj(f_in, f_out)
                     os.remove(download_path)  # Remove the original gz file
-                            
+                    
                 # Check for other file types and add .hmm extension if necessary
-                elif not file_name.endswith(('.hmm', '.gz', '.tgz')):
-                    new_file_name = file_name + '.hmm'
-                    os.rename(download_path, os.path.join(target_folder, new_file_name))
+                elif not file_name.endswith(('.hmm', '.HMM')):
+                    if db_name == 'dbCAN':
+                        #dbCAN provides a single file called 'dbCAN-fam-HMMs.txt.v11'
+                        new_file_name = file_name + '.hmm'
+                        os.rename(download_path, os.path.join(target_folder, new_file_name))
+                    else:
+                        os.system('rm ' + os.path.join(target_folder, file_name))
+
             
             print(f"{db_name} successfully downloaded and extracted.")
             db['installed'] = True
@@ -225,7 +391,6 @@ def install_databases(db_name, parsed_json=None,  db_path=None):
                 json.dump(parsed_json, f, indent=4)
                 
             return
-    print(f"Database {db_name} not found.")
 
 
 
@@ -248,11 +413,15 @@ def show_installed_databases(parsed_json):
 
 
 def main(args):
+
     # Load JSON containing information about available HMM databases
     parsed_json = load_json()
-    
+
     # Load configuration to get the database path
     config = load_config()
+
+    
+    
     db_path = config['db_path']
     
     # Extract HMM database names from command line arguments
@@ -296,4 +465,4 @@ def main(args):
                     
         # Case for installing a specific database
         else:
-            install_databases(parsed_json, db_name, db_path)
+            install_databases(db_name, parsed_json, db_path)

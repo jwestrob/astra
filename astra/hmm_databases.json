@@ -153,6 +153,32 @@
             "domain":false,
             "citation":"https://github.com/tseemann/barrnap/tree/master (GPLv3 license)",
             "notes":"16S HMMs built from Rfam seed alignments; lacking covariance models."
+        },
+        {
+            "name":"Karthik_Metabolic",
+            "url":"https://github.com/kanantharaman/metabolic-hmms/tree/master",
+            "installed":false,
+            "installation_dir":"",
+            "molecule_type":"protein",
+            "domain":false,
+            "citation":"https://github.com/kanantharaman/metabolic-hmms",
+            "notes":"Do not contain bitscore thresholds; custom HMMs."
+        },
+        {
+            "name":"PHROG",
+            "url":"https://phrogs.lmge.uca.fr/downloads_from_website/HMM_phrog.tar.gz",
+            "installed":false,
+            "installation_dir":"",
+            "molecule_type":"protein",
+            "citation":"PHROG : families of prokaryotic virus proteins clustered using remote homology.Terzian P*, Olo Ndela E*, Galiez C, Lossouarn J, Pérez Bucio RE, Mom R, Toussaint A, Petit MA, Enault F.NAR Genomics and Bioinformatics, Volume 3, Issue 3, September 2021, lqab067, https://doi.org/10.1093/nargab/lqab067"
+        },
+        {
+            "name":"pVOG",
+            "url":"https://ftp.ncbi.nlm.nih.gov/pub/kristensen/pVOGs/downloads/All/AllvogHMMprofiles.tar.gz",
+            "installed":false,
+            "installation_dir":"",
+            "molecule_type":"protein",
+            "citation":"Grazziotin AL, Koonin EV, Kristensen DM. Prokaryotic Virus Orthologous Groups (pVOGs): a resource for comparative genomics and protein family annotation. Nucleic Acids Res. 2017 Jan 4;45(D1):D491-D498. doi: 10.1093/nar/gkw975. Epub 2016 Oct 26. PMID: 27789703; PMCID: PMC5210652."
         }
 
     ]
