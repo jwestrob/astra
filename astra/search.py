@@ -78,7 +78,7 @@ def hmmsearch(protein_dict, hmms, threads, options):
         #Let's separate these out because often a single set of HMMs will contain thresholded
         #as well as unthresholded models.
         print("Separating thresholded and non-thresholded HMMs...")
-        
+
         with ProcessPoolExecutor(threads) as executor:
             # Create a Boolean mask indicating which HMMs have thresholds
             has_thresholds_mask = list(executor.map(has_thresholds, hmms))
@@ -109,6 +109,8 @@ def hmmsearch(protein_dict, hmms, threads, options):
         results = []
         
         if hmms_with_thresholds is not None:
+            print("scanning with thresholded HMMs...")
+            print(hmmsearch_kwargs)
             # Run the thresholded HMMs
             for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
                 cog = hits.query_name.decode()
@@ -122,6 +124,7 @@ def hmmsearch(protein_dict, hmms, threads, options):
                                   domain.i_evalue, domain.env_from, domain.env_to, domain.score))
 
         if hmms_without_thresholds is not None:
+            print("scanning with unthresholded HMMs...")
             #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
             for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs_nothreshold):
                 cog = hits.query_name.decode()
