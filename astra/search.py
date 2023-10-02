@@ -100,7 +100,8 @@ def hmmsearch(protein_dict, hmms, threads, options):
 
         #Remove evalue and bitscore thresholds that might be otherwise imposed when running with predefined cutoff scores
         #And remove other thresholds because pyhmmer gets mad if you specify nonetype
-        hmmsearch_kwargs = {'bit_cutoffs':hmmsearch_kwargs['bit_cutoffs']}
+        bit_cutoff = hmmsearch_kwargs['bit_cutoffs']
+        hmmsearch_kwargs = {'bit_cutoffs':bit_cutoff}
     else:
         hmms_without_thresholds = hmms
         hmms_with_thresholds = None
