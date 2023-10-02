@@ -9,7 +9,7 @@ import collections
 import shutil
 from astra import initialize
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 def get_results_attributes(result):
@@ -139,6 +139,11 @@ def hmmsearch(protein_dict, hmms, threads, options):
     
     return results_dataframes
 
+def parse_single_hmm(hmm_path):
+    #Single-file parser for parallelization
+    with pyhmmer.plan7.HMMFile(hmm_path) as hmm_file:
+        return list(hmm_file)
+
 def parse_hmms(hmm_in):
     #Checks first whether HMMs are provided as a single file or as a directory.
 
@@ -147,15 +152,24 @@ def parse_hmms(hmm_in):
     # Check if hmm_in is a directory or a single file
     if os.path.isdir(hmm_in):
         if not os.listdir(hmm_in):
-            print(hmm_in)
             print("hmm_in directory is empty.")
             sys.exit(1)
+        
+        # Generate list of HMM files
+        hmm_files = list(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in)))
+        hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
+
+        # Initialize progress bar
+        pbar = tqdm(total=len(hmm_files), desc="Parsing HMMs")
+
         # Parse each HMM file in the directory
-        print("Parsing HMMs...")
-        for hmmfile in tqdm(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in))):
-            with pyhmmer.plan7.HMMFile(os.path.join(hmm_in, hmmfile)) as hmm_file:
-                hmm = hmm_file.read()
-            hmms.append(hmm)
+        with ProcessPoolExecutor(threads) as executor:
+            future_to_hmm = {executor.submit(parse_single_hmm, hmm_path): hmm_path for hmm_path in hmm_paths}
+            for future in as_completed(future_to_hmm):
+                hmms.extend(future.result())
+                pbar.update(1)
+
+        pbar.close()
     elif os.path.isfile(hmm_in):
         if os.path.getsize(hmm_in) == 0:
             print("hmm_in file is empty.")
@@ -323,6 +337,9 @@ def main(args):
     cut_tc = args.cut_tc
 
     write_seqs = args.write_seqs
+
+    #again i am too lazy to pass this parameter in a function call SUE ME
+    global threads
     threads = args.threads
 
     #initialize default options
