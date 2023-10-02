@@ -9,7 +9,7 @@ import collections
 import shutil
 from astra import initialize
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 
 def get_results_attributes(result):
@@ -57,6 +57,11 @@ def extract_sequences(results_dataframes_dict, outdir):
     # Remove tmp_ids directory
     shutil.rmtree(tmp_ids_dir)
 
+def has_thresholds(x):
+    return x.cutoffs.gathering_available() is not None or \
+           x.cutoffs.noise_available() is not None or \
+           x.cutoffs.trusted_available() is not None
+
 def hmmsearch(protein_dict, hmms, threads, options):
     #Runs HMMscan on all provided FASTA files using 'threads' threads
     #uses default parameters unless specified
@@ -73,12 +78,14 @@ def hmmsearch(protein_dict, hmms, threads, options):
         #Let's separate these out because often a single set of HMMs will contain thresholded
         #as well as unthresholded models.
 
-        #User is still responsible for specifying the right model though!! I'm not gonna hold your hand that much
-        hmms_with_thresholds = list(filter(lambda x: x.cutoffs.gathering_available() is not None or \
-                                                     x.cutoffs.noise_available() is not None or \
-                                                     x.cutoffs.trusted_available() is not None,
-                                                     hmms))
-        hmms_without_thresholds = list(filter(lambda x: x not in hmms_with_thresholds, hmms))
+        with ProcessPoolExecutor(threads) as executor:
+            # Filter HMMs with thresholds
+            hmms_with_thresholds = list(executor.map(has_thresholds, hmms))
+            hmms_with_thresholds = [hmm for hmm, has_thresh in zip(hmms, hmms_with_thresholds) if has_thresh]
+            
+            # Filter HMMs without thresholds
+            hmms_without_thresholds = [hmm for hmm in hmms if hmm not in hmms_with_thresholds]
+
 
         hmmsearch_kwargs_nothreshold = hmmsearch_kwargs
         hmmsearch_kwargs_nothreshold['bit_cutoffs'] = None
