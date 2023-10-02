@@ -74,9 +74,9 @@ def hmmsearch(protein_dict, hmms, threads, options):
         #as well as unthresholded models.
 
         #User is still responsible for specifying the right model though!! I'm not gonna hold your hand that much
-        hmms_with_thresholds = list(filter(lambda x: x.gathering_available is not None or \
-                                                     x.noise_available is not None or \
-                                                     x.trusted_available is not None,
+        hmms_with_thresholds = list(filter(lambda x: x.cutoffs.gathering_available() is not None or \
+                                                     x.cutoffs.noise_available() is not None or \
+                                                     x.cutoffs.trusted_available() is not None,
                                                      hmms))
         hmms_without_thresholds = list(filter(lambda x: x not in hmms_with_thresholds, hmms))
 
