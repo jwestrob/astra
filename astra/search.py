@@ -306,9 +306,6 @@ def define_kwargs(options):
             except ValueError:
                 print("Error: domT must be a float or castable to float.")
 
-    if options['Z'] is not None:
-        kwargs['Z'] = options['Z']
-
     return kwargs
 
 
