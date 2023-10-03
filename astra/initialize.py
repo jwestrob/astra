@@ -238,7 +238,8 @@ def install_KOFAM():
 
 def add_threshold(hmm_file_path, threshold):
     #Some thresholds in ko_list are specified for HMMs not provided by the package...
-    if not os.path.exists(hmm_file_path) or threshold == 0.0:
+    #
+    if not os.path.exists(hmm_file_path) or threshold == 0.0 or threshold == '-':
         return
 
     #I'm going to add the threshold in all three fields.
