@@ -72,7 +72,6 @@ def hmmsearch(protein_dict, hmms, threads, options):
     #Construct search options; need to make sure names are consistent with pyHMMER
     #and we only specify one bitscore threshold
     hmmsearch_kwargs = define_kwargs(options)
-    print(hmmsearch_kwargs)
     if hmmsearch_kwargs['bit_cutoffs'] != None:
         print(hmmsearch_kwargs)
         #pyHMMER rightly throws an error when you try to use thresholds that don't exist in the model.
@@ -95,14 +94,16 @@ def hmmsearch(protein_dict, hmms, threads, options):
 
 
 
-        hmmsearch_kwargs_nothreshold = hmmsearch_kwargs
-        #Remove this; having a None value for bit_cutoffs will annoy pyHMMER
-        del hmmsearch_kwargs_nothreshold['bit_cutoffs']
+
 
         #Remove evalue and bitscore thresholds that might be otherwise imposed when running with predefined cutoff scores
         #And remove other thresholds because pyhmmer gets mad if you specify nonetype
         bit_cutoff = hmmsearch_kwargs['bit_cutoffs']
         hmmsearch_kwargs = {'bit_cutoffs':bit_cutoff}
+
+        hmmsearch_kwargs_nothreshold = hmmsearch_kwargs
+        #Remove this; having a None value for bit_cutoffs will annoy pyHMMER
+        del hmmsearch_kwargs_nothreshold['bit_cutoffs']
     else:
         hmms_without_thresholds = hmms
         hmms_with_thresholds = None
