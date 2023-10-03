@@ -1,4 +1,4 @@
-pyhmmer
-pandas
 biopython
+pandas
+pyhmmer
 tqdm

@@ -9,9 +9,15 @@ import collections
 import shutil
 from astra import initialize
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 
+# Pyhmmer-specific issues:
+"""
+- Pickle protocol not supported for sequences
+- Thresholds are altered by pickling when parsing HMMs in parallel with ProcessPoolExecutor
+"""
 def get_results_attributes(result):
     bitscore = result.bitscore
     evalue = result.evalue
@@ -62,7 +68,7 @@ def has_thresholds(x):
            x.cutoffs.noise_available() is not None or \
            x.cutoffs.trusted_available() is not None
 
-def hmmsearch(protein_dict, hmms, threads, options):
+def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
     #Runs HMMscan on all provided FASTA files using 'threads' threads
     #uses default parameters unless specified
 
@@ -72,8 +78,9 @@ def hmmsearch(protein_dict, hmms, threads, options):
     #Construct search options; need to make sure names are consistent with pyHMMER
     #and we only specify one bitscore threshold
     hmmsearch_kwargs = define_kwargs(options)
-    if hmmsearch_kwargs['bit_cutoffs'] != None:
-        print(hmmsearch_kwargs)
+
+    #Do we need to check whether we have a mixture of thresholded and non-thresholded models?
+    if 'bit_cutoffs' in hmmsearch_kwargs and not db_name in ['PFAM', 'FOAM']:
         #pyHMMER rightly throws an error when you try to use thresholds that don't exist in the model.
         #Let's separate these out because often a single set of HMMs will contain thresholded
         #as well as unthresholded models.
@@ -83,16 +90,22 @@ def hmmsearch(protein_dict, hmms, threads, options):
             # Create a Boolean mask indicating which HMMs have thresholds
             has_thresholds_mask = list(executor.map(has_thresholds, hmms))
 
-            # Convert the mask to a NumPy array for efficient indexing
-            has_thresholds_mask_np = np.array(has_thresholds_mask)
+        # Convert the mask to a NumPy array for efficient indexing
+        has_thresholds_mask_np = np.array(has_thresholds_mask)
 
-            # Filter HMMs with thresholds using the mask
-            hmms_with_thresholds = np.array(hmms)[has_thresholds_mask_np].tolist()
+        # Filter HMMs with thresholds using the mask
+        hmms_with_thresholds = np.array(hmms)[has_thresholds_mask_np].tolist()
 
-            # Filter HMMs without thresholds using the inverse of the mask
-            hmms_without_thresholds = np.array(hmms)[~has_thresholds_mask_np].tolist()
+        # Filter HMMs without thresholds using the inverse of the mask
+        hmms_without_thresholds = np.array(hmms)[~has_thresholds_mask_np].tolist()
 
+        if len(hmms_with_thresholds) == 0:
+            print("Bitscore cutoffs were specified, but specified HMMs do not contain these thresholds.")
+            print("Defaulting to other specified threshold parameters (if none were specified, none will be applied)...")
+            hmms_with_thresholds = None
 
+        if len(hmms_without_thresholds) == 0:
+            hmms_without_thresholds = None
 
 
 
@@ -103,21 +116,24 @@ def hmmsearch(protein_dict, hmms, threads, options):
         bit_cutoff = hmmsearch_kwargs['bit_cutoffs']
 
         del hmmsearch_kwargs['bit_cutoffs']
+    elif db_name in ['PFAM', 'FOAM'] and 'bit_cutoffs' in hmmsearch_kwargs:
 
+        #These dbs have thresholds for every HMM
+        hmms_with_thresholds = hmms
+        hmms_without_thresholds = None
+        bit_cutoff = hmmsearch_kwargs['bit_cutoffs']
     else:
-        hmms_without_thresholds = hmms
+        #All unthresholded
         hmms_with_thresholds = None
+        hmms_without_thresholds = hmms
+        
 
     print("Searching...")
-    print(len(hmms_with_thresholds))
-    print(len(hmms_without_thresholds))
-    print(hmmsearch_kwargs)
-    sys.exit()
+
     for fasta_file, sequences in tqdm(protein_dict.items()):
         results = []
         
         if hmms_with_thresholds is not None:
-            print("scanning with thresholded HMMs...")
             # Run the thresholded HMMs
             for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, bit_cutoffs=bit_cutoff):
                 cog = hits.query_name.decode()
@@ -131,8 +147,6 @@ def hmmsearch(protein_dict, hmms, threads, options):
                                   domain.i_evalue, domain.env_from, domain.env_to, domain.score))
 
         if hmms_without_thresholds is not None:
-            print("scanning with unthresholded HMMs...")
-            print(hmmsearch_kwargs)
             #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
             for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
                 cog = hits.query_name.decode()
@@ -170,7 +184,7 @@ def hmmsearch(protein_dict, hmms, threads, options):
 def parse_single_hmm(hmm_path):
     #Single-file parser for parallelization
     with pyhmmer.plan7.HMMFile(hmm_path) as hmm_file:
-        return list(hmm_file)
+        return hmm_file.read()
 
 def parse_hmms(hmm_in):
     #Checks first whether HMMs are provided as a single file or as a directory.
@@ -187,29 +201,25 @@ def parse_hmms(hmm_in):
         hmm_files = list(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in)))
         hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
 
-        # Initialize progress bar
-        pbar = tqdm(total=len(hmm_files), desc="Parsing HMMs")
-
+        # Used to have a progress bar here but it was hanging because I was using concurrent.futures
+        #So let's just use PPE
+        print("Parsing HMMs...")
         # Parse each HMM file in the directory
-        with ProcessPoolExecutor(threads) as executor:
-            future_to_hmm = {executor.submit(parse_single_hmm, hmm_path): hmm_path for hmm_path in hmm_paths}
-            for future in as_completed(future_to_hmm):
-                hmms.extend(future.result())
-                pbar.update(1)
+        with ThreadPoolExecutor(threads) as executor:
+            hmms = list(executor.map(parse_single_hmm, hmm_paths))
 
-        pbar.close()
     elif os.path.isfile(hmm_in):
         if os.path.getsize(hmm_in) == 0:
             print("hmm_in file is empty.")
             sys.exit(1)
-        # Parse the single HMM file
+        # Parse the single HMM file; handles multi-model files
         with pyhmmer.plan7.HMMFile(hmm_in) as hmm_file:
             hmms = list(hmm_file)
     else:
         print("Invalid input for hmm_in.")
         sys.exit(1)
-    
-    return hmms
+
+    return list(hmms)
 
 def process_fasta(fasta_file):
     # Function to handle each file for parallelism
@@ -417,7 +427,6 @@ def main(args):
         print("Searching with user-provided HMM(s)...")
         #Check HMM input and parse
         user_hmms = parse_hmms(args.hmm_in)
-        
         #Obtain dictionary containing results dataframes for each input FASTA
         results_dataframes_dict = hmmsearch(protein_dict, user_hmms, threads, hmmsearch_options)
         
@@ -464,9 +473,9 @@ def main(args):
             #and the hmmsearch function will write a file for each DB and each protein file
             #because they're huge
             if not meta:
-                results_dataframes_dict = hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options)
+                results_dataframes_dict = hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options, hmm_db)
             else:
-                hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options)
+                hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options, hmm_db)
 
             if args.write_seqs:
                 extract_sequences(results_dataframes_dict, outdir)

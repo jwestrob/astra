@@ -234,11 +234,11 @@ def install_KOFAM():
         hmm_file = os.path.join(kofam_dir,'{}.hmm'.format(knum))
         #Add the threshold and overwrite the file!!
         add_threshold(hmm_file, threshold)
-
+    return
 
 def add_threshold(hmm_file_path, threshold):
     #Some thresholds in ko_list are specified for HMMs not provided by the package...
-    if not os.path.exists(hmm_file_path):
+    if not os.path.exists(hmm_file_path) or threshold == 0.0:
         return
 
     #I'm going to add the threshold in all three fields.
@@ -266,6 +266,7 @@ def add_threshold(hmm_file_path, threshold):
     with open(hmm_file_path, 'w') as outfile:
         for element in new_lines:
             outfile.writelines(element + '\n')
+    return
 
 def install_databases(db_name, parsed_json=None,  db_path=None):
 

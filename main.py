@@ -14,6 +14,20 @@ def main():
 
 
 
+
+
+
+    ##############
+    # INITIALIZE #
+    ##############
+    
+    # Astra initialize sub-command
+    parser_initialize = subparsers.add_parser('initialize', help='Downloads provided HMM databases.')
+    parser_initialize.add_argument('--show_installed', action='store_true', help='Show installed databases.')
+    parser_initialize.add_argument('--show_available', action='store_true', help='Show available databases.')
+    parser_initialize.add_argument('--hmms', nargs='?', const='all', default=None, help='Install specified HMM databases. Use comma-separated values for multiple databases.')
+
+
     ##########
     # SEARCH #
     ##########
@@ -52,19 +66,6 @@ def main():
     parser_search.add_argument("--write_seqs", action="store_true", default=False, help="Obtain sequences for each HMM and write them to a folder within 'outdir'. Default: False")
     parser_search.add_argument('--threads', type=int, help="Number of threads to use for HMMsearch. Default behavior: Choose appropriate number of threads based on psutil.cpu_count and number of query sequences", default=0) 
 
-
-
-    ##############
-    # INITIALIZE #
-    ##############
-    
-    # Astra initialize sub-command
-    parser_initialize = subparsers.add_parser('initialize', help='Downloads provided HMM databases.')
-    parser_initialize.add_argument('--show_installed', action='store_true', help='Show installed databases.')
-    parser_initialize.add_argument('--show_available', action='store_true', help='Show available databases.')
-    parser_initialize.add_argument('--hmms', nargs='?', const='all', default=None, help='Install specified HMM databases. Use comma-separated values for multiple databases.')
-
-    # ... arguments for initialize
 
     # Astra nucsearch sub-command
     parser_scan = subparsers.add_parser('scan', help='Scan protein sequences with HMM profiles.')
