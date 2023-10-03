@@ -96,8 +96,10 @@ def hmmsearch(protein_dict, hmms, threads, options):
 
 
 
-        #Remove evalue and bitscore thresholds that might be otherwise imposed when running with predefined cutoff scores
-        #And remove other thresholds because pyhmmer gets mad if you specify nonetype
+        #This was a bit tricky. pyHMMER doesn't like NoneType for bit_cutoffs
+        #And I don't want to specify any other thresholds for models with cutoffs
+        #So we have to isolate that parameter, and remove it from the kwargs 
+        #Used in a search for non-thresholded models
         bit_cutoff = hmmsearch_kwargs['bit_cutoffs']
 
         del hmmsearch_kwargs['bit_cutoffs']
@@ -107,12 +109,15 @@ def hmmsearch(protein_dict, hmms, threads, options):
         hmms_with_thresholds = None
 
     print("Searching...")
+    print(len(hmms_with_thresholds))
+    print(len(hmms_without_thresholds))
+    print(hmmsearch_kwargs)
+    sys.exit()
     for fasta_file, sequences in tqdm(protein_dict.items()):
         results = []
         
         if hmms_with_thresholds is not None:
             print("scanning with thresholded HMMs...")
-            print("Bit cutoff: {}".format(bit_cutoff))
             # Run the thresholded HMMs
             for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, bit_cutoffs=bit_cutoff):
                 cog = hits.query_name.decode()
@@ -127,6 +132,7 @@ def hmmsearch(protein_dict, hmms, threads, options):
 
         if hmms_without_thresholds is not None:
             print("scanning with unthresholded HMMs...")
+            print(hmmsearch_kwargs)
             #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
             for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
                 cog = hits.query_name.decode()
@@ -147,13 +153,19 @@ def hmmsearch(protein_dict, hmms, threads, options):
             # Store the DataFrame in the dictionary
             results_dataframes[fasta_file] = result_df
         else:
+            #If meta is true, we don't want to hold all the results in RAM. We want to write an output file for every DB-metagenome search.
             try:
+                #Make sure the outdir exists
                 result_df.to_csv(os.path.join(outdir, fasta_file + '_' + hmm_db + 'results.tsv'), sep='\t', index=False)
             except Error as e:
                 print(Error)
+                #Hey man idk, maybe it doesn't? Maybe you called search as a function from a python script?
+                #If so, write output files to the current working directory instead.
                 result_df.to_csv(fasta_file + '_' + hmm_db + '.results.tsv', sep='\t', index=False)
-    
-    return results_dataframes
+    if meta == False:
+        return results_dataframes
+    else:
+        return
 
 def parse_single_hmm(hmm_path):
     #Single-file parser for parallelization
