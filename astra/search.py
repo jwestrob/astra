@@ -277,7 +277,7 @@ def define_kwargs(options):
 
     if options['domE'] is not None:
         #Make sure it's the right format, or castable as such!
-        if not isinstance(kwargs['domE'], float):
+        if not isinstance(options['domE'], float):
             try:
                 kwargs['domE'] = float(options['domE'])
             except ValueError:
@@ -285,7 +285,7 @@ def define_kwargs(options):
 
     if options['domT'] is not None:
         #Make sure it's the right format, or castable as such!
-        if not isinstance(kwargs['domT'], float):
+        if not isinstance(options['domT'], float):
             try:
                 kwargs['domT'] = float(options['domT'])
             except ValueError:
@@ -293,7 +293,7 @@ def define_kwargs(options):
 
     if options['incE'] is not None:
         #Make sure it's the right format, or castable as such!
-        if not isinstance(kwargs['incE'], float):
+        if not isinstance(options['incE'], float):
             try:
                 kwargs['incE'] = float(options['incE'])
             except ValueError:
@@ -301,7 +301,7 @@ def define_kwargs(options):
 
     if options['incT'] is not None:
         #Make sure it's the right format, or castable as such!
-        if not isinstance(kwargs['incT'], float):
+        if not isinstance(options['incT'], float):
             try:
                 kwargs['incT'] = float(options['incT'])
             except ValueError:
@@ -309,7 +309,7 @@ def define_kwargs(options):
 
     if options['incdomE'] is not None:
         #Make sure it's the right format, or castable as such!
-        if not isinstance(kwargs['incdomE'], float):
+        if not isinstance(options['incdomE'], float):
             try:
                 kwargs['incdomE'] = float(options['incdomE'])
             except ValueError:
@@ -317,7 +317,7 @@ def define_kwargs(options):
 
     if options['incdomT'] is not None:
         #Make sure it's the right format, or castable as such!
-        if not isinstance(kwargs['incdomT'], float):
+        if not isinstance(options['incdomT'], float):
             try:
                 kwargs['incdomT'] = float(options['incdomT'])
             except ValueError:
@@ -325,7 +325,7 @@ def define_kwargs(options):
 
     if options['evalue'] is not None:
         #Make sure it's the right format, or castable as such!
-        if not isinstance(kwargs['incdomT'], float):
+        if not isinstance(options['incdomT'], float):
             try:
                 kwargs['E'] = float(options['evalue'])
             except ValueError:
