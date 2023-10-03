@@ -99,11 +99,9 @@ def hmmsearch(protein_dict, hmms, threads, options):
         #Remove evalue and bitscore thresholds that might be otherwise imposed when running with predefined cutoff scores
         #And remove other thresholds because pyhmmer gets mad if you specify nonetype
         bit_cutoff = hmmsearch_kwargs['bit_cutoffs']
-        hmmsearch_kwargs = {'bit_cutoffs':bit_cutoff}
 
-        hmmsearch_kwargs_nothreshold = hmmsearch_kwargs
-        #Remove this; having a None value for bit_cutoffs will annoy pyHMMER
-        del hmmsearch_kwargs_nothreshold['bit_cutoffs']
+        del hmmsearch_kwargs['bit_cutoffs']
+
     else:
         hmms_without_thresholds = hmms
         hmms_with_thresholds = None
@@ -114,9 +112,9 @@ def hmmsearch(protein_dict, hmms, threads, options):
         
         if hmms_with_thresholds is not None:
             print("scanning with thresholded HMMs...")
-            print(hmmsearch_kwargs)
+            print("Bit cutoff: {}".format(bit_cutoff))
             # Run the thresholded HMMs
-            for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
+            for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, bit_cutoffs=bit_cutoff):
                 cog = hits.query_name.decode()
                 for hit in hits:
                     if hit.included:
@@ -130,7 +128,7 @@ def hmmsearch(protein_dict, hmms, threads, options):
         if hmms_without_thresholds is not None:
             print("scanning with unthresholded HMMs...")
             #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
-            for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs_nothreshold):
+            for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
                 cog = hits.query_name.decode()
                 for hit in hits:
                     if hit.included:
