@@ -175,13 +175,11 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
             try:
                 #Make sure the outdir exists and db_name is specified
                 #DEBUG! REMOVE!
-                print(Error)
                 print(fasta_file)
                 print(db_name)
                 result_df.to_csv(os.path.join(outdir, fasta_file + '_' + db_name + 'results.tsv'), sep='\t', index=False)
             except:
                 #DEBUG! REMOVE!
-                print(Error)
                 print(fasta_file)
                 print(db_name)
                 #Hey man idk, maybe it doesn't? Maybe you called search as a function from a python script?
