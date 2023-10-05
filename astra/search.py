@@ -136,7 +136,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
         results = []
         
         if hmms_with_thresholds is not None:
-            print("Searching with {} thresholded HMMs...".format(len(hmms_with_thresholds)))
+            #print("Searching with {} thresholded HMMs...".format(len(hmms_with_thresholds)))
             # Run the thresholded HMMs
             for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, bit_cutoffs=bit_cutoff):
                 cog = hits.query_name.decode()
@@ -150,7 +150,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
                                   domain.i_evalue, domain.env_from, domain.env_to, domain.score))
 
         if hmms_without_thresholds is not None:
-            print("Searching with {} unthresholded HMMs...".format(len(hmms_without_thresholds)))
+            #print("Searching with {} unthresholded HMMs...".format(len(hmms_without_thresholds)))
             #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
             for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
                 cog = hits.query_name.decode()
@@ -175,14 +175,8 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
             basename_fasta = os.path.basename(fasta_file)
             try:
                 #Make sure the outdir exists and db_name is specified
-                #DEBUG! REMOVE!
-                print(basename_fasta)
-                print(db_name)
-                result_df.to_csv(os.path.join(outdir, basename_fasta + '_' + db_name + 'results.tsv'), sep='\t', index=False)
+                result_df.to_csv(os.path.join(outdir, basename_fasta + '_' + db_name + '_results.tsv'), sep='\t', index=False)
             except:
-                #DEBUG! REMOVE!
-                print(fasta_file)
-                print(db_name)
                 #Hey man idk, maybe it doesn't? Maybe you called search as a function from a python script?
                 #If so, write output files to the current working directory instead.
                 if db_name is None:
