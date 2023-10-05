@@ -209,8 +209,12 @@ def parse_hmms(hmm_in):
         #So let's just use PPE
         print("Parsing HMMs...")
         # Parse each HMM file in the directory
-        with ThreadPoolExecutor(threads) as executor:
-            hmms = list(executor.map(parse_single_hmm, hmm_paths))
+        #DEBUG! REMOVE!
+        if False:
+            with ThreadPoolExecutor(threads) as executor:
+                hmms = list(executor.map(parse_single_hmm, hmm_paths))
+        else:
+            hmms = list(map(parse_single_hmm, hmm_paths))
 
     elif os.path.isfile(hmm_in):
         if os.path.getsize(hmm_in) == 0:

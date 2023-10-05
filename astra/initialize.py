@@ -236,8 +236,9 @@ def add_threshold(hmm_file_path, threshold):
     # Some thresholds in ko_list are specified for HMMs not provided by the package...
     
     if not os.path.exists(hmm_file_path) or threshold == 0.0 or threshold == '-':
-        #This code is deprecated, but if the if gate is never supposed to trigger we can still make use of it.
-        print("Unthresholded HMMs passed to add_threshold function for KOFAM installation. Ping Jacob please")
+        # '-' values shouldn't still exist in this set, but if the threshold is 0
+        # or the HMM is specified in KO_list but not provided in the HMM set,
+        # let's just ignore it and not add bad thresholds
         return
 
     #I'm going to add the threshold in all three fields.
