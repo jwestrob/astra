@@ -174,8 +174,13 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
             #If meta is true, we don't want to hold all the results in RAM. We want to write an output file for every DB-metagenome search.
             try:
                 #Make sure the outdir exists and db_name is specified
+                #DEBUG! REMOVE!
+                print(Error)
+                print(fasta_file)
+                print(db_name)
                 result_df.to_csv(os.path.join(outdir, fasta_file + '_' + db_name + 'results.tsv'), sep='\t', index=False)
-            except Error as e:
+            except:
+                #DEBUG! REMOVE!
                 print(Error)
                 print(fasta_file)
                 print(db_name)
