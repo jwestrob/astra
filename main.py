@@ -37,7 +37,6 @@ def main():
     parser_search = subparsers.add_parser('search', description='Search protein sequences with HMM profiles.')
     parser_search.add_argument('--hmm_in', default=None, help='Input file/directory for HMM profiles.')
     parser_search.add_argument('--prot_in', required=True, help='Input file for protein sequences.')
-    parser_search.add_argument('--meta', default=False, help='Indicates input files are metagenomes; changes behavior to compensate for large input file size. See docs for details')
     parser_search.add_argument('--outdir', required=True, help='Output directory for results.')
     parser_search.add_argument('--installed_hmms', default=None, type=str, help='Comma-separated list of installed HMM databases to use. If you specify a database that is not installed, Astra will not utilize it here. Go install it with initialize')
 
@@ -63,6 +62,7 @@ def main():
     parser_search.add_argument("--cut_nc", action="store_true", default=False, help="Use built-in NC thresholds. Default: False")
     parser_search.add_argument("--cut_tc", action="store_true", default=False, help="Use built-in TC thresholds. Default: False")   
 
+    parser_search.add_argument('--meta', action='store_true',default=False, help='Indicates input files are metagenomes; changes behavior to compensate for large input file size. See docs for details')
     parser_search.add_argument("--write_seqs", action="store_true", default=False, help="Obtain sequences for each HMM and write them to a folder within 'outdir'. Default: False")
     parser_search.add_argument('--threads', type=int, help="Number of threads to use for HMMsearch. Default behavior: Choose appropriate number of threads based on psutil.cpu_count and number of query sequences", default=0) 
 
