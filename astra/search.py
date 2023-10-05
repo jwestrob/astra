@@ -64,9 +64,11 @@ def extract_sequences(results_dataframes_dict, outdir):
     shutil.rmtree(tmp_ids_dir)
 
 def has_thresholds(x):
-    return x.cutoffs.gathering_available() is not None or \
-           x.cutoffs.noise_available() is not None or \
-           x.cutoffs.trusted_available() is not None
+    flag = x.cutoffs.gathering_available() or \
+           x.cutoffs.noise_available() or \
+           x.cutoffs.trusted_available()
+
+    return flag
 
 def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
     #Runs HMMscan on all provided FASTA files using 'threads' threads
@@ -134,6 +136,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
         results = []
         
         if hmms_with_thresholds is not None:
+            print("Searching with {} thresholded HMMs...".format(len(hmms_with_thresholds)))
             # Run the thresholded HMMs
             for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, bit_cutoffs=bit_cutoff):
                 cog = hits.query_name.decode()
@@ -147,6 +150,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
                                   domain.i_evalue, domain.env_from, domain.env_to, domain.score))
 
         if hmms_without_thresholds is not None:
+            print("Searching with {} unthresholded HMMs...".format(len(hmms_without_thresholds)))
             #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
             for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
                 cog = hits.query_name.decode()
@@ -216,7 +220,9 @@ def parse_hmms(hmm_in):
         with pyhmmer.plan7.HMMFile(hmm_in) as hmm_file:
             hmms = list(hmm_file)
     else:
-        print("Invalid input for hmm_in.")
+        print("Invalid HMM input.")
+        print("If you used pre-installed HMMs, check hmm_databases.json")
+        print("Which is located in the databases directory.")
         sys.exit(1)
 
     return list(hmms)

@@ -175,10 +175,13 @@ def install_KOFAM():
             file_name = url.split('/')[-1]
             download_path = os.path.join(target_folder, file_name)
             
-            # Download the file with progress bar
-            with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
-                urllib.request.urlretrieve(url, download_path, reporthook=t.update_to)
-            
+            if not os.path.exists(download_path):
+                print("KOFAM profiles already detected in download directory. Decompressing...")
+                # Download the file with progress bar
+                with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
+                    urllib.request.urlretrieve(url, download_path, reporthook=t.update_to)
+
+                
             # Extract the file if it's a tar archive
             if tarfile.is_tarfile(download_path):
                 print(f"Extracting {file_name}...")
@@ -225,6 +228,17 @@ def install_KOFAM():
     print("Adding kofam bitscore thresholds to HMM files...")
     #Now parse ko_list as a pandas DF
     ko_list = pd.read_csv(os.path.join(db_path, 'ko_list'), sep='\t')
+
+    # Not all models actually have thresholds; insist that they do
+    # All this extraneous code is for the purposes of avoiding a pandas warning. Don't judge me
+    # Create a mask for rows where the threshold is not '-'
+    mask = ko_list_['threshold'] != '-'
+
+    # Use the mask to filter rows and convert the 'threshold' column to float
+    ko_list.loc[mask, 'threshold'] = ko_list.loc[mask, 'threshold'].astype(float)
+
+
+    
     kofam_dir = os.path.join(db_path, 'KOFAM')
     #Iterate only on rows of ko_list as all other HMMs will lack thresholds
     for index, row in ko_list.iterrows():
@@ -237,9 +251,11 @@ def install_KOFAM():
     return
 
 def add_threshold(hmm_file_path, threshold):
-    #Some thresholds in ko_list are specified for HMMs not provided by the package...
-    #
+    # Some thresholds in ko_list are specified for HMMs not provided by the package...
+    
     if not os.path.exists(hmm_file_path) or threshold == 0.0 or threshold == '-':
+        #This code is deprecated, but if the if gate is never supposed to trigger we can still make use of it.
+        print("Unthresholded HMMs passed to add_threshold function for KOFAM installation. Ping Jacob please")
         return
 
     #I'm going to add the threshold in all three fields.
