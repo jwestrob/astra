@@ -158,11 +158,11 @@ def install_KOFAM():
             download_path = os.path.join(target_folder, file_name)
             
             if not os.path.exists(download_path):
-                print("KOFAM profiles already detected in download directory. Decompressing...")
                 # Download the file with progress bar
                 with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
                     urllib.request.urlretrieve(url, download_path, reporthook=t.update_to)
-
+            else:
+                print("KOFAM profiles already detected in download directory. Decompressing...")
                 
             # Extract the file if it's a tar archive
             if tarfile.is_tarfile(download_path):
@@ -214,7 +214,7 @@ def install_KOFAM():
     # Not all models actually have thresholds; insist that they do
     # All this extraneous code is for the purposes of avoiding a pandas warning. Don't judge me
     # Create a mask for rows where the threshold is not '-'
-    mask = ko_list_['threshold'] != '-'
+    mask = ko_list['threshold'] != '-'
 
     # Use the mask to filter rows and convert the 'threshold' column to float
     ko_list.loc[mask, 'threshold'] = ko_list.loc[mask, 'threshold'].astype(float)
