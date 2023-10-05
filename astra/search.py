@@ -177,6 +177,8 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
                 result_df.to_csv(os.path.join(outdir, fasta_file + '_' + db_name + 'results.tsv'), sep='\t', index=False)
             except Error as e:
                 print(Error)
+                print(fasta_file)
+                print(db_name)
                 #Hey man idk, maybe it doesn't? Maybe you called search as a function from a python script?
                 #If so, write output files to the current working directory instead.
                 if db_name is None:
