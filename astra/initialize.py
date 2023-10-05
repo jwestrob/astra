@@ -147,25 +147,7 @@ def install_KOFAM():
         if db['name'] == db_name:
             target_folder = os.path.abspath(os.path.join(db_path, db_name))  # Use absolute path
             
-            # Check if the folder exists and if it's empty
-            if os.path.exists(target_folder):
-                if len(os.listdir(target_folder)) != 0:
-                    print(f"Folder for {db_name} exists and is not empty. Skipping download.")
-                    if "installation_dir" not in db:
-                        db["installation_dir"] = target_folder
-                        # Update the JSON file to reflect the new installation_dir
-                        json_path = os.path.join(db_path, 'hmm_databases.json')  
-                        with open(json_path, 'w') as f:
-                            json.dump(parsed_json, f, indent=4)
-                    elif db['installation_dir'] == '':
-                        db["installation_dir"] = target_folder
-                        # Update the JSON file to reflect the new installation_dir
-                        json_path = os.path.join(db_path, 'hmm_databases.json')  
-                        with open(json_path, 'w') as f:
-                            json.dump(parsed_json, f, indent=4)
-                    return
-            else:
-                os.makedirs(target_folder, exist_ok=True)
+            os.makedirs(target_folder, exist_ok=True)
             
             print(f"Downloading {db_name} to {target_folder}...")
             
