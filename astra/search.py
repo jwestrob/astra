@@ -172,12 +172,13 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
             results_dataframes[fasta_file] = result_df
         else:
             #If meta is true, we don't want to hold all the results in RAM. We want to write an output file for every DB-metagenome search.
+            basename_fasta = os.path.basename(fasta_file)
             try:
                 #Make sure the outdir exists and db_name is specified
                 #DEBUG! REMOVE!
-                print(fasta_file)
+                print(basename_fasta)
                 print(db_name)
-                result_df.to_csv(os.path.join(outdir, fasta_file + '_' + db_name + 'results.tsv'), sep='\t', index=False)
+                result_df.to_csv(os.path.join(outdir, basename_fasta + '_' + db_name + 'results.tsv'), sep='\t', index=False)
             except:
                 #DEBUG! REMOVE!
                 print(fasta_file)
@@ -186,7 +187,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
                 #If so, write output files to the current working directory instead.
                 if db_name is None:
                     #Is there no db_name and meta is specified?
-                    result_df.to_csv(os.path.join(outdir, fasta_file + '_results.tsv'), sep='\t', index=False)
+                    result_df.to_csv(os.path.join(outdir, basename_fasta + '_results.tsv'), sep='\t', index=False)
                 else:
                     result_df.to_csv(fasta_file + '_' + db_name + '.results.tsv', sep='\t', index=False)
     if meta == False:
