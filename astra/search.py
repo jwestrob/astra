@@ -232,7 +232,7 @@ def parse_hmms(hmm_in):
             hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
             #I have tried!! Every possible method! To parallelize this!
             #It does not work. SINGLE THREADED IT IS!
-            hmms = list(map(parse_single_hmm, hmm_paths))
+            hmms = list(tqdm(map(parse_single_hmm, hmm_paths)))
 
             """
             WITNESS THE RESULT OF MY FOLLY!
