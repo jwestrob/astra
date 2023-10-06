@@ -198,7 +198,7 @@ def parse_single_hmm(hmm_path):
 
 # Modified to include explicit loop reference
 async def parse_single_hmm_async(hmm_path, sem):
-    print(f"Processing {hmm_path}")  # Debug: Check if function is called
+    #print(f"Processing {hmm_path}")  # Debug: Check if function is called
     async with sem:
         #print(f"Acquired semaphore for {hmm_path}")  # Debug: Check if semaphore is acquired
         loop = asyncio.get_event_loop()
