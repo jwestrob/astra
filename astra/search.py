@@ -220,6 +220,7 @@ def parse_hmms(hmm_in):
 
         num_files = len(os.listdir(hmm_in))
         if num_files == 1:
+            print("Flocka")
             #Only one HMM file in input directory
             #Get full path to file
             hmm_path = os.path.join(hmm_in, os.listdir(hmm_in)[0])
