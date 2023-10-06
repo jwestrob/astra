@@ -11,6 +11,7 @@ from astra import initialize
 from tqdm import tqdm
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+import asyncio
 
 
 # Pyhmmer-specific issues:
@@ -151,6 +152,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
 
         if hmms_without_thresholds is not None:
             #print("Searching with {} unthresholded HMMs...".format(len(hmms_without_thresholds)))
+            #print(hmmsearch_kwargs)
             #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
             for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
                 cog = hits.query_name.decode()
@@ -194,6 +196,12 @@ def parse_single_hmm(hmm_path):
     with pyhmmer.plan7.HMMFile(hmm_path) as hmm_file:
         return hmm_file.read()
 
+async def parse_single_hmm_async(hmm_path, sem):
+    async with sem:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, parse_single_hmm, hmm_path)
+
+
 def parse_hmms(hmm_in):
     #Checks first whether HMMs are provided as a single file or as a directory.
 
@@ -204,17 +212,34 @@ def parse_hmms(hmm_in):
         if not os.listdir(hmm_in):
             print("hmm_in directory is empty.")
             sys.exit(1)
-        
-        # Generate list of HMM files
-        hmm_files = list(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in)))
-        hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
 
-        # Used to have a progress bar here but it was hanging because I was using concurrent.futures
-        #So let's just use PPE
-        print("Parsing HMMs...")
-        # Parse each HMM file in the directory
-        with ProcessPoolExecutor(threads) as executor:
-            hmms = list(executor.map(parse_single_hmm, hmm_paths))
+        num_files = len(os.listdir(hmm_in))
+        if num_files == 1:
+            #Only one HMM file in input directory
+            #Get full path to file
+            hmm_path = os.path.join(hmm_in, os.listdir(hmm_in)[0])
+            with pyhmmer.plan7.HMMFile(hmm_path) as hmm_file:
+                #Works in case of single-model or multi-model HMM file
+                hmms = list(hmm_file)
+
+        else:
+            #Multiple HMM files within input directory
+
+            # Generate list of HMM files
+            hmm_files = list(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in)))
+            hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
+
+            # Used to have a progress bar here but it was hanging because I was using concurrent.futures
+            #So let's just use PPE
+            print("Parsing HMMs...")
+            sem = asyncio.Semaphore(threads)
+
+            async def gather_tasks():
+                tasks = [parse_single_hmm_async(hmm_path, sem) for hmm_path in hmm_paths]
+                return await asyncio.gather(*tasks)
+
+            hmms = asyncio.run(gather_tasks())
+
 
     elif os.path.isfile(hmm_in):
         if os.path.getsize(hmm_in) == 0:

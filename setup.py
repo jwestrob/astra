@@ -9,7 +9,8 @@ setup(
         'pyhmmer',
         'pandas',
         'biopython',
-        'tqdm'
+        'tqdm',
+	'asyncio'
     ],
         entry_points={
             'console_scripts': ['Astra=main:main'],
