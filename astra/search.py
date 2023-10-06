@@ -225,6 +225,7 @@ def parse_hmms(hmm_in):
             #Get full path to file
             hmm_path = os.path.join(hmm_in, os.listdir(hmm_in)[0])
             with pyhmmer.plan7.HMMFile(hmm_path) as hmm_file:
+                print("Gucci")
                 #Works in case of single-model or multi-model HMM file
                 hmms = list(hmm_file)
 
@@ -240,7 +241,6 @@ def parse_hmms(hmm_in):
                 return await asyncio.gather(*tasks)
 
             hmms = loop.run_until_complete(gather_tasks())
-            print("HMMs parsed.")
 
     elif os.path.isfile(hmm_in):
         if os.path.getsize(hmm_in) == 0:
@@ -254,6 +254,8 @@ def parse_hmms(hmm_in):
         print("If you used pre-installed HMMs, check hmm_databases.json")
         print("Which is located in the databases directory.")
         sys.exit(1)
+
+    print("HMMs parsed.")
 
     return list(hmms)
 
