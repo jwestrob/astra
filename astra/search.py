@@ -196,7 +196,9 @@ def parse_single_hmm(hmm_path):
     with pyhmmer.plan7.HMMFile(hmm_path) as hmm_file:
         return hmm_file.read()
 
+# Modified to include explicit loop reference
 async def parse_single_hmm_async(hmm_path, sem):
+    #print(f"Processing {hmm_path}")
     async with sem:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, parse_single_hmm, hmm_path)
@@ -206,7 +208,7 @@ def parse_hmms(hmm_in):
     #Checks first whether HMMs are provided as a single file or as a directory.
 
     hmms = []  # Initialize an empty list to store parsed HMMs
-    
+    print("Parsing HMMs...")
     # Check if hmm_in is a directory or a single file
     if os.path.isdir(hmm_in):
         if not os.listdir(hmm_in):
@@ -223,22 +225,17 @@ def parse_hmms(hmm_in):
                 hmms = list(hmm_file)
 
         else:
-            #Multiple HMM files within input directory
-
-            # Generate list of HMM files
             hmm_files = list(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in)))
             hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
-
-            # Used to have a progress bar here but it was hanging because I was using concurrent.futures
-            #So let's just use PPE
-            print("Parsing HMMs...")
-            sem = asyncio.Semaphore(threads)
-
+            
+            loop = asyncio.get_event_loop()
+            sem = asyncio.Semaphore(threads)  # Explicit loop reference
+            
             async def gather_tasks():
                 tasks = [parse_single_hmm_async(hmm_path, sem) for hmm_path in hmm_paths]
                 return await asyncio.gather(*tasks)
 
-            hmms = asyncio.run(gather_tasks())
+            hmms = loop.run_until_complete(gather_tasks())
 
 
     elif os.path.isfile(hmm_in):
