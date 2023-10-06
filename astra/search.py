@@ -200,9 +200,9 @@ def parse_single_hmm(hmm_path):
 async def parse_single_hmm_async(hmm_path, sem):
     print(f"Processing {hmm_path}")  # Debug: Check if function is called
     async with sem:
-        print(f"Acquired semaphore for {hmm_path}")  # Debug: Check if semaphore is acquired
+        #print(f"Acquired semaphore for {hmm_path}")  # Debug: Check if semaphore is acquired
         loop = asyncio.get_event_loop()
-        print(f"Got event loop for {hmm_path}")  # Debug: Check if event loop is obtained
+        #print(f"Got event loop for {hmm_path}")  # Debug: Check if event loop is obtained
         result = await loop.run_in_executor(None, parse_single_hmm, hmm_path)
         print(f"Executor completed for {hmm_path}")  # Debug: Check if executor has completed
         return result
