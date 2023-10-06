@@ -230,7 +230,13 @@ def parse_hmms(hmm_in):
         else:
             hmm_files = list(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in)))
             hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
-            
+            #I have tried!! Every possible method! To parallelize this!
+            #It does not work. SINGLE THREADED IT IS!
+            hmms = list(map(parse_single_hmm, hmm_paths))
+
+            """
+            WITNESS THE RESULT OF MY FOLLY!
+            GAZE UPON MY MISDEEDS AND DESPAIR!
             loop = asyncio.get_event_loop()
             sem = asyncio.Semaphore(threads)  # Explicit loop reference
             
@@ -239,6 +245,8 @@ def parse_hmms(hmm_in):
                 return await asyncio.gather(*tasks)
 
             hmms = loop.run_until_complete(gather_tasks())
+
+            """
 
     elif os.path.isfile(hmm_in):
         if os.path.getsize(hmm_in) == 0:
