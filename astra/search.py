@@ -204,7 +204,7 @@ async def parse_single_hmm_async(hmm_path, sem):
         loop = asyncio.get_event_loop()
         #print(f"Got event loop for {hmm_path}")  # Debug: Check if event loop is obtained
         result = await loop.run_in_executor(None, parse_single_hmm, hmm_path)
-        print(f"Executor completed for {hmm_path}")  # Debug: Check if executor has completed
+        #print(f"Executor completed for {hmm_path}")  # Debug: Check if executor has completed
         return result
 
 def parse_hmms(hmm_in):
@@ -239,7 +239,7 @@ def parse_hmms(hmm_in):
                 return await asyncio.gather(*tasks)
 
             hmms = loop.run_until_complete(gather_tasks())
-
+            print("HMMs parsed.")
 
     elif os.path.isfile(hmm_in):
         if os.path.getsize(hmm_in) == 0:
