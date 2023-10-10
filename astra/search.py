@@ -230,13 +230,14 @@ def parse_hmms(hmm_in):
         else:
             hmm_files = list(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in)))
             hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
+            
             #I have tried!! Every possible method! To parallelize this!
             #It does not work. SINGLE THREADED IT IS!
             hmms = list(tqdm(map(parse_single_hmm, hmm_paths)))
 
             """
-            WITNESS THE RESULT OF MY FOLLY!
-            GAZE UPON MY MISDEEDS AND DESPAIR!
+            #WITNESS THE RESULT OF MY FOLLY!
+            #GAZE UPON MY MISDEEDS AND DESPAIR!
             loop = asyncio.get_event_loop()
             sem = asyncio.Semaphore(threads)  # Explicit loop reference
             
@@ -534,6 +535,5 @@ if __name__ == "__main__":
 
 #TODO:
 """
-- implement thresholding; pass arguments to 'hmmsearch' function
-- Implement custom thresholding for databases
+- Multithread extract_sequences
 """
