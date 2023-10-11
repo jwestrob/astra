@@ -12,7 +12,8 @@ from tqdm import tqdm
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import asyncio
-
+import logging
+import time
 
 # Pyhmmer-specific issues:
 """
@@ -88,6 +89,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
         #Let's separate these out because often a single set of HMMs will contain thresholded
         #as well as unthresholded models.
         print("Separating thresholded and non-thresholded HMMs...")
+        logging.info("Separating thresholded and non-thresholded HMMs...")
 
         with ProcessPoolExecutor(threads) as executor:
             # Create a Boolean mask indicating which HMMs have thresholds
@@ -105,6 +107,8 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
         if len(hmms_with_thresholds) == 0:
             print("Bitscore cutoffs were specified, but specified HMMs do not contain these thresholds.")
             print("Defaulting to other specified threshold parameters (if none were specified, none will be applied)...")
+            logging.info("Bitscore cutoffs were specified, but specified HMMs do not contain these thresholds.")
+            logging.info("Defaulting to other specified threshold parameters (if none were specified, none will be applied)...")
             hmms_with_thresholds = None
 
         if len(hmms_without_thresholds) == 0:
@@ -216,6 +220,7 @@ def parse_hmms(hmm_in):
     if os.path.isdir(hmm_in):
         if not os.listdir(hmm_in):
             print("hmm_in directory is empty.")
+            logging.info('hmm_in directory is empty.')
             sys.exit(1)
 
         num_files = len(os.listdir(hmm_in))
@@ -252,14 +257,18 @@ def parse_hmms(hmm_in):
     elif os.path.isfile(hmm_in):
         if os.path.getsize(hmm_in) == 0:
             print("hmm_in file is empty.")
+            logging.info('hmm_in file is empty.')
             sys.exit(1)
         # Parse the single HMM file; handles multi-model files
         with pyhmmer.plan7.HMMFile(hmm_in) as hmm_file:
             hmms = list(hmm_file)
     else:
         print("Invalid HMM input.")
+        logging.info("Invalid HMM input.")
         print("If you used pre-installed HMMs, check hmm_databases.json")
+        logging.info("If you used pre-installed HMMs, check hmm_databases.json")
         print("Which is located in the databases directory.")
+        logging.info("Which is located in the databases directory.")
         sys.exit(1)
 
     print("HMMs parsed.")
@@ -280,6 +289,7 @@ def parse_protein_input(prot_in, threads):
     if os.path.isdir(prot_in):
         if not os.listdir(prot_in):
             print("prot_in directory is empty.")
+            logging.info("prot_in directory is empty.")
             sys.exit(1)
 
         # Initialize an empty dictionary to hold protein sequences
@@ -300,6 +310,7 @@ def parse_protein_input(prot_in, threads):
     elif os.path.isfile(prot_in):
         if os.path.getsize(prot_in) == 0:
             print("prot_in file is empty.")
+            logging.info("prot_in file is empty.")
             sys.exit(1)
         # Parse the single protein FASTA file
         with pyhmmer.easel.SequenceFile(prot_in, digital=True) as seq_file:
@@ -307,6 +318,7 @@ def parse_protein_input(prot_in, threads):
         protein_dict[prot_in] = sequences
     else:
         print("Invalid input for prot_in.")
+        logging.info("Invalid input for prot_in.")
         sys.exit(1)
     
     return protein_dict
@@ -340,6 +352,7 @@ def define_kwargs(options):
                 kwargs['T'] = float(options['bitscore'])
             except ValueError:
                 print("Error: bitscore threshold must be a float or castable as a float.")
+                logging.info("Error: bitscore threshold must be a float or castable as a float.")
 
     if options['domE'] is not None:
         #Make sure it's the right format, or castable as such!
@@ -348,6 +361,7 @@ def define_kwargs(options):
                 kwargs['domE'] = float(options['domE'])
             except ValueError:
                 print("Error: domE must be a float or castable to float.")
+                logging.info("Error: domE must be a float or castable to float.")
 
     if options['domT'] is not None:
         #Make sure it's the right format, or castable as such!
@@ -356,6 +370,7 @@ def define_kwargs(options):
                 kwargs['domT'] = float(options['domT'])
             except ValueError:
                 print("Error: domT must be a float or castable to float.")
+                logging.info("Error: domT must be a float or castable to float.")
 
     if options['incE'] is not None:
         #Make sure it's the right format, or castable as such!
@@ -364,6 +379,7 @@ def define_kwargs(options):
                 kwargs['incE'] = float(options['incE'])
             except ValueError:
                 print("Error: domT must be a float or castable to float.")
+                logging.error("Error: domT must be a float or castable to float.")
 
     if options['incT'] is not None:
         #Make sure it's the right format, or castable as such!
@@ -371,7 +387,8 @@ def define_kwargs(options):
             try:
                 kwargs['incT'] = float(options['incT'])
             except ValueError:
-                print("Error: domT must be a float or castable to float.")
+                print("Error: incT must be a float or castable to float.")
+                logging.error("Error: incT must be a float or castable to float.")
 
     if options['incdomE'] is not None:
         #Make sure it's the right format, or castable as such!
@@ -379,7 +396,8 @@ def define_kwargs(options):
             try:
                 kwargs['incdomE'] = float(options['incdomE'])
             except ValueError:
-                print("Error: domT must be a float or castable to float.")
+                print("Error: incdomE must be a float or castable to float.")
+                logging.error("Error: incdomE must be a float or castable to float.")
 
     if options['incdomT'] is not None:
         #Make sure it's the right format, or castable as such!
@@ -387,7 +405,8 @@ def define_kwargs(options):
             try:
                 kwargs['incdomT'] = float(options['incdomT'])
             except ValueError:
-                print("Error: domT must be a float or castable to float.")
+                print("Error: incdomT must be a float or castable to float.")
+                logging.error("Error: incdomT must be a float or castable to float.")
 
     if options['evalue'] is not None:
         #Make sure it's the right format, or castable as such!
@@ -395,12 +414,14 @@ def define_kwargs(options):
             try:
                 kwargs['E'] = float(options['evalue'])
             except ValueError:
-                print("Error: domT must be a float or castable to float.")
+                print("Error: evalue must be a float or castable to float.")
+                logging.error("Error: evalue must be a float or castable to float.")
 
     return kwargs
 
 
 def main(args):
+    t1 = time.time()
     # Required arguments
     hmm_in = args.hmm_in
     prot_in = args.prot_in 
@@ -412,7 +433,10 @@ def main(args):
     #Set this as global; we don't want to have to pass it
     global outdir 
     outdir = args.outdir
-
+    log_file_path = os.path.join(outdir, 'astra_search_log.txt')
+    logging.basicConfig(filename=log_file_path, level=logging.INFO,
+                        format='%(asctime)s %(levelname)s: %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S')
     installed_hmms = args.installed_hmms
 
     # Optional arguments
@@ -446,15 +470,20 @@ def main(args):
     }
 
     if hmm_in is None and installed_hmms is None:
-        print("Either a user-provided or pre-installed HMM database must be specified. You know better.")
+        error_out = "Either a user-provided or pre-installed HMM database must be specified. You know better."
+        print(error_out)
+        logging.error(error_out)
         sys.exit(1)
 
     # Check if more than one of --evalue, --bitscore, --cut_nc, --cut_tc, and --cut_ga are specified
     specified_flags = [args.cut_nc, args.cut_tc, args.cut_ga]
     if sum(specified_flags) > 1:
         print("Error: You can only specify one of --bitscore, --cut_nc, --cut_tc, and --cut_ga.")
+        logging.info("Error: You can only specify one of --bitscore, --cut_nc, --cut_tc, and --cut_ga.")
         print("If you specify a bitscore threshold and a pre-defined cutoff (e.g. --cut_ga) the pre-defined cutoff will be used")
+        logging.info("If you specify a bitscore threshold and a pre-defined cutoff (e.g. --cut_ga) the pre-defined cutoff will be used")
         print("where available, otherwise the specified bitscore threshold will be used.")
+        logging.info("where available, otherwise the specified bitscore threshold will be used.")
 
     # Check if the output directory already exists
     if not os.path.exists(outdir):
@@ -470,6 +499,7 @@ def main(args):
 
     if hmm_in is not None:
         print("Searching with user-provided HMM(s)...")
+        logging.info("Searching with user-provided HMM(s)...")
         #Check HMM input and parse
         user_hmms = parse_hmms(args.hmm_in)
         #Obtain dictionary containing results dataframes for each input FASTA
@@ -491,6 +521,7 @@ def main(args):
         else:
             installed_hmm_names = [installed_hmms]  # Single element list
         print("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
+        logging.info("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
         #Load JSON with database and procedural information
         parsed_json = initialize.load_json()
 
@@ -512,6 +543,7 @@ def main(args):
             else:
                 #No installation_dir specified; print this and move on
                 print("No installation_dir specified for db " + hmm_db)
+                logging.info("No installation_dir specified for db " + hmm_db)
                 continue
 
             #if we're in meta mode, we don't want to keep all that shit in memory
@@ -528,6 +560,9 @@ def main(args):
             if not meta:
                 db_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
                 db_results_df.to_csv(os.path.join(outdir,hmm_db + '_hits_df.tsv'), sep='\t', index=False)
+    time_printout  = "Process took {} seconds.".format(time.time()-t1)
+    print(time_printout)
+    logging.info(time_printout)
 
 if __name__ == "__main__":
     main()

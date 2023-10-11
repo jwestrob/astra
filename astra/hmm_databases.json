@@ -126,7 +126,7 @@
         },
         {
             "name":"CANT-HYD",
-            "url":"https://github.com/dgittins/CANT-HYD-HydrocarbonBiodegradation/blob/main/HMMs/concatenated%20HMMs/",
+            "url":"https://github.com/dgittins/CANT-HYD-HydrocarbonBiodegradation/blob/main/HMMs/concatenated%20HMMs/CANT-HYD.hmm",
             "installed":false,
             "installation_dir":"",
             "molecule_type":"protein",
