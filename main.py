@@ -66,8 +66,11 @@ def main():
     parser_search.add_argument("--write_seqs", action="store_true", default=False, help="Obtain sequences for each HMM and write them to a folder within 'outdir'. Default: False")
     parser_search.add_argument('--threads', type=int, help="Number of threads to use for HMMsearch. Default behavior: Choose appropriate number of threads based on psutil.cpu_count and number of query sequences", default=1) 
 
+    ##########
+    #  SCAN  #
+    ##########
 
-    # Astra nucsearch sub-command
+    # Astrasearch sub-command
     parser_scan = subparsers.add_parser('scan', help='Scan protein sequences with HMM profiles.')
     parser_scan.add_argument('--hmm_in', default=None, help='Input file/directory for HMM profiles.')
     parser_scan.add_argument('--prot_in', required=True, help='Input file for protein sequences.')
@@ -95,7 +98,7 @@ def main():
     parser_scan.add_argument("--cut_ga", action="store_true", default=False, help="Use built-in GA thresholds. Default: False")
     parser_scan.add_argument("--cut_nc", action="store_true", default=False, help="Use built-in NC thresholds. Default: False")
     parser_scan.add_argument("--cut_tc", action="store_true", default=False, help="Use built-in TC thresholds. Default: False")   
-
+    parser_scan.add_argument("--Z", type=str, default=None, help="Number of sequences in input set; for conditioning scan evalues. Default behavior: Obtain from HMM file")
 
     parser_scan.add_argument("--write_seqs", action="store_true", default=False, help="Obtain sequences for each HMM and write them to a folder within 'outdir'. Default: False")
     parser_scan.add_argument('--threads', type=int, help="Number of threads to use for HMMsearch. Default behavior: Choose appropriate number of threads based on psutil.cpu_count and number of query sequences", default=0) 
