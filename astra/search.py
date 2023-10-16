@@ -434,6 +434,13 @@ def main(args):
     global outdir 
     outdir = args.outdir
     log_file_path = os.path.join(outdir, 'astra_search_log.txt')
+
+    # Check if the output directory already exists
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+        if write_seqs:
+            os.makedirs(os.path.join(outdir, 'fastas'))  # Also create a 'fastas' folder within the output directory
+
     logging.basicConfig(filename=log_file_path, level=logging.INFO,
                         format='%(asctime)s %(levelname)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
@@ -485,11 +492,6 @@ def main(args):
         print("where available, otherwise the specified bitscore threshold will be used.")
         logging.info("where available, otherwise the specified bitscore threshold will be used.")
 
-    # Check if the output directory already exists
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
-        if write_seqs:
-            os.makedirs(os.path.join(outdir, 'fastas'))  # Also create a 'fastas' folder within the output directory
 
 
 
@@ -520,8 +522,15 @@ def main(args):
             installed_hmm_names = installed_hmms.split(',')
         else:
             installed_hmm_names = [installed_hmms]  # Single element list
-        print("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
-        logging.info("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
+
+        #Two conditions in case there isn't a , in the installed_hmm_names
+        if ',' in installed_hmm_names:
+            print("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
+            logging.info("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
+        else:
+            print("Searching with pre-installed HMMs: {}".format(installed_hmm_names[0]))
+            logging.info("Searching with pre-installed HMMs: {}".format(installed_hmm_names[0]))
+
         #Load JSON with database and procedural information
         parsed_json = initialize.load_json()
 

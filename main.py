@@ -1,5 +1,5 @@
 import argparse
-from astra import search, initialize, nucsearch, phmmer, jackhmmer
+from astra import search, initialize, nucsearch, phmmer, jackhmmer, scan
 
 class CustomHelpFormatter(argparse.HelpFormatter):
     def _format_action(self, action):
@@ -99,7 +99,8 @@ def main():
     parser_scan.add_argument("--cut_nc", action="store_true", default=False, help="Use built-in NC thresholds. Default: False")
     parser_scan.add_argument("--cut_tc", action="store_true", default=False, help="Use built-in TC thresholds. Default: False")   
     parser_scan.add_argument("--Z", type=str, default=None, help="Number of sequences in input set; for conditioning scan evalues. Default behavior: Obtain from HMM file")
-
+    
+    parser_scan.add_argument('--meta', action='store_true',default=False, help='Indicates input files are metagenomes; changes behavior to compensate for large input file size. See docs for details')
     parser_scan.add_argument("--write_seqs", action="store_true", default=False, help="Obtain sequences for each HMM and write them to a folder within 'outdir'. Default: False")
     parser_scan.add_argument('--threads', type=int, help="Number of threads to use for HMMsearch. Default behavior: Choose appropriate number of threads based on psutil.cpu_count and number of query sequences", default=0) 
     # ... other arguments for scan
@@ -123,6 +124,8 @@ def main():
 
     if args.command == 'search':
         search.main(args)
+    elif args.command == 'scan':
+        scan.main(args)
     elif args.command == 'initialize':
         initialize.main(args)
     elif args.command == 'nucsearch':
