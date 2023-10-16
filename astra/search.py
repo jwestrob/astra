@@ -438,7 +438,7 @@ def main(args):
     # Check if the output directory already exists
     if not os.path.exists(outdir):
         os.makedirs(outdir)
-        if write_seqs:
+        if args.write_seqs:
             os.makedirs(os.path.join(outdir, 'fastas'))  # Also create a 'fastas' folder within the output directory
 
     logging.basicConfig(filename=log_file_path, level=logging.INFO,
