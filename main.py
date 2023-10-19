@@ -112,7 +112,10 @@ def main():
 
     # Astra phmmer sub-command
     parser_phmmer = subparsers.add_parser('phmmer', help='Performs phmmer search.')
-    parser_phmmer.add_argument('--query_seqs', required=True, help='Query sequences for phmmer.')
+    parser_phmmer.add_argument('--query_seqs', required=True, help='Query sequences for jackhmmer. [FASTA]')
+    parser_phmmer.add_argument('--subject_seqs', required=True, help='Subject sequences (database) for jackhmmer. [FASTA]')
+    parser_phmmer.add_argument('--threads', type=int, default=1, help='Number of threads to use. Default=1.')
+    parser_phmmer.add_argument('--outdir', required=True, help='Output directory for results.')
     # ... other arguments for phmmer
 
     # Astra jackhmmer sub-command
