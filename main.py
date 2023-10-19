@@ -116,9 +116,12 @@ def main():
     # ... other arguments for phmmer
 
     # Astra jackhmmer sub-command
-    parser_jackhmmer = subparsers.add_parser('jackhmmer', help='Performs jackhmmer search.')
-    parser_jackhmmer.add_argument('--jack_query_seqs', required=True, help='Query sequences for jackhmmer.')
-    # ... other arguments for jackhmmer
+    parser_jackhmmer = subparsers.add_parser('jackhmmer', help='Performs jackhmmer search. Accepts either nucleotide or amino acid input, but the query and subject sequence alphabets must match.')
+    parser_jackhmmer.add_argument('--query_seqs', required=True, help='Query sequences for jackhmmer. [FASTA]')
+    parser_jackhmmer.add_argument('--subject_seqs', required=True, help='Subject sequences (database) for jackhmmer. [FASTA]')
+    parser_jackhmmer.add_argument('--threads', type=int, default=1, help='Number of threads to use. Default=1.')
+    parser_jackhmmer.add_argument('--outdir', required=True, help='Output directory for results.')
+
 
     args = parser.parse_args()
 
