@@ -19,7 +19,6 @@ from tqdm import tqdm
 from astra import initialize
 from astra.search import(
     Result,
-    get_results_attributes,
     extract_sequences,
     has_thresholds,
     parse_hmms,
@@ -131,7 +130,7 @@ def hmmscan(protein_dict, hmms, threads, options, db_name = None):
                     
         # Convert the results to a DataFrame
         #Is it necessary to cast it as a list?
-        result_df = pd.DataFrame(list(map(get_results_attributes, results)), columns=["sequence_id", "hmm_name", "bitscore", "evalue","c_evalue", "i_evalue", "env_from", "env_to", "dom_bitscore"])
+        result_df = pd.DataFrame(results)
         
         if meta == False:
             # Store the DataFrame in the dictionary
