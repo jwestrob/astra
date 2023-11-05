@@ -17,63 +17,20 @@ import pyhmmer
 from tqdm import tqdm
 
 from astra import initialize
+from astra.search import(
+    Result,
+    get_results_attributes,
+    extract_sequences,
+    has_thresholds,
+    parse_hmms,
+    parse_protein_input,
+)
 
 # Pyhmmer-specific issues:
 """
 - Pickle protocol not supported for sequences
 - Thresholds are altered by pickling when parsing HMMs in parallel with ProcessPoolExecutor
 """
-def get_results_attributes(result):
-    bitscore = result.bitscore
-    evalue = result.evalue
-    cog = result.hmm_name
-    c_evalue = result.c_evalue
-    i_evalue = result.i_evalue
-    query = result.sequence_id
-    env_from = result.env_from
-    env_to = result.env_to
-    dom_bitscore = result.dom_bitscore
-    return [query, cog, bitscore, evalue, c_evalue, i_evalue, env_from, env_to, bitscore]
-
-#Store as a global so we don't have to define it multiple times
-Result = collections.namedtuple("Result", ["sequence_id", "hmm_name", "bitscore", "evalue","c_evalue", "i_evalue", 
-                                          "env_from", "env_to", "dom_bitscore"])
-
-def extract_sequences(results_dataframes_dict, outdir):
-    # Create tmp_ids directory within outdir
-    tmp_ids_dir = os.path.join(outdir, 'tmp_ids')
-    os.makedirs(tmp_ids_dir, exist_ok=True)
-    
-    # Create fastas directory within outdir
-    fastas_dir = os.path.join(outdir, 'fastas')
-    os.makedirs(fastas_dir, exist_ok=True)
-    
-    for genome_file, df in results_dataframes_dict.items():
-        for hmm_name in df['hmm_name'].unique():
-            # Extract the IDs corresponding to the current HMM
-            ids_to_extract = df[df['hmm_name'] == hmm_name]['sequence_id'].tolist()
-            
-            # Write IDs to a temporary file
-            idfile = os.path.join(tmp_ids_dir, f"{hmm_name}_ids.txt")
-            with open(idfile, 'w') as f:
-                f.write("\n".join(ids_to_extract))
-            
-            # Define the output FASTA file for hits
-            hits_fasta = os.path.join(fastas_dir, f"{hmm_name}.faa")
-            
-            # Run pullseq command to extract sequences
-            pullseq_cmd = f"cat {idfile} | pullseq -i {genome_file} -N >> {hits_fasta}"
-            subprocess.run(pullseq_cmd, shell=True)
-
-    # Remove tmp_ids directory
-    shutil.rmtree(tmp_ids_dir)
-
-def has_thresholds(x):
-    flag = x.cutoffs.gathering_available() or \
-           x.cutoffs.noise_available() or \
-           x.cutoffs.trusted_available()
-
-    return flag
 
 def hmmscan(protein_dict, hmms, threads, options, db_name = None):
     #Runs HMMscan on all provided FASTA files using 'threads' threads
@@ -198,142 +155,6 @@ def hmmscan(protein_dict, hmms, threads, options, db_name = None):
     else:
         return
 
-def parse_single_hmm(hmm_path):
-    #Single-file parser for parallelization
-    with pyhmmer.plan7.HMMFile(hmm_path) as hmm_file:
-        return hmm_file.read()
-
-# Modified to include explicit loop reference
-async def parse_single_hmm_async(hmm_path, sem):
-    #print(f"Processing {hmm_path}")  # Debug: Check if function is called
-    async with sem:
-        #print(f"Acquired semaphore for {hmm_path}")  # Debug: Check if semaphore is acquired
-        loop = asyncio.get_event_loop()
-        #print(f"Got event loop for {hmm_path}")  # Debug: Check if event loop is obtained
-        result = await loop.run_in_executor(None, parse_single_hmm, hmm_path)
-        #print(f"Executor completed for {hmm_path}")  # Debug: Check if executor has completed
-        return result
-
-def parse_hmms(hmm_in):
-    #Checks first whether HMMs are provided as a single file or as a directory.
-
-    hmms = []  # Initialize an empty list to store parsed HMMs
-    print("Parsing HMMs...")
-    # Check if hmm_in is a directory or a single file
-    if os.path.isdir(hmm_in):
-        if not os.listdir(hmm_in):
-            print("hmm_in directory is empty.")
-            logging.info('hmm_in directory is empty.')
-            sys.exit(1)
-
-        num_files = len(os.listdir(hmm_in))
-        if num_files == 1:
-            #Only one HMM file in input directory
-            #Get full path to file
-            hmm_path = os.path.join(hmm_in, os.listdir(hmm_in)[0])
-            with pyhmmer.plan7.HMMFile(hmm_path) as hmm_file:
-                #Works in case of single-model or multi-model HMM file
-                hmms = list(hmm_file)
-
-        else:
-            hmm_files = list(filter(lambda x: x.endswith(('.hmm', '.HMM')), os.listdir(hmm_in)))
-            hmm_paths = [os.path.join(hmm_in, hmm_file) for hmm_file in hmm_files]
-            
-            #I have tried!! Every possible method! To parallelize this!
-            #It does not work. SINGLE THREADED IT IS!
-            hmms = list(tqdm(map(parse_single_hmm, hmm_paths)))
-
-            """
-            #WITNESS THE RESULT OF MY FOLLY!
-            #GAZE UPON MY MISDEEDS AND DESPAIR!
-            loop = asyncio.get_event_loop()
-            sem = asyncio.Semaphore(threads)  # Explicit loop reference
-            
-            async def gather_tasks():
-                tasks = [parse_single_hmm_async(hmm_path, sem) for hmm_path in hmm_paths]
-                return await asyncio.gather(*tasks)
-
-            hmms = loop.run_until_complete(gather_tasks())
-
-            """
-
-    elif os.path.isfile(hmm_in):
-        if os.path.getsize(hmm_in) == 0:
-            print("hmm_in file is empty.")
-            logging.info('hmm_in file is empty.')
-            sys.exit(1)
-        # Parse the single HMM file; handles multi-model files
-        with pyhmmer.plan7.HMMFile(hmm_in) as hmm_file:
-            hmms = list(hmm_file)
-    else:
-        print("Invalid HMM input.")
-        logging.info("Invalid HMM input.")
-        print("If you used pre-installed HMMs, check hmm_databases.json")
-        logging.info("If you used pre-installed HMMs, check hmm_databases.json")
-        print("Which is located in the databases directory.")
-        logging.info("Which is located in the databases directory.")
-        sys.exit(1)
-
-    print("HMMs parsed.")
-
-    return list(hmms)
-
-def process_fasta(fasta_file):
-    # Function to handle each file for parallelism
-    with pyhmmer.easel.SequenceFile(fasta_file, digital=True) as seq_file:
-        sequences = seq_file.read_block()
-    return fasta_file, sequences
-
-def parse_protein_input(prot_in, threads):
-    print("Parsing protein input sequences...")
-    protein_dict = {}  # Initialize an empty dictionary to store parsed proteins
-    
-    # Check if prot_in is a directory or a single file
-    if os.path.isdir(prot_in):
-        if not os.listdir(prot_in):
-            print("prot_in directory is empty.")
-            logging.info("prot_in directory is empty.")
-            sys.exit(1)
-
-        # Initialize an empty dictionary to hold protein sequences
-        protein_dict = {}
-
-        #I formatted this as a loop because I was trying to parallelize it
-        #but the sequence object for pyHMMER doesn't have pickle protocol support
-        #Anyway I left it as a weird map with a tqdm you're welcome enjoy
-        results = list(map(process_fasta, 
-            tqdm(
-                [os.path.join(prot_in, x) for x in os.listdir(prot_in)]
-                )
-            ))
-
-        # Populate the protein_dict
-        for fasta_path, sequences in results:
-            protein_dict[fasta_path] = sequences
-    elif os.path.isfile(prot_in):
-        if os.path.getsize(prot_in) == 0:
-            print("prot_in file is empty.")
-            logging.info("prot_in file is empty.")
-            sys.exit(1)
-        # Parse the single protein FASTA file
-        with pyhmmer.easel.SequenceFile(prot_in, digital=True) as seq_file:
-            sequences = seq_file.read_block()
-        protein_dict[prot_in] = sequences
-    else:
-        print("Invalid input for prot_in.")
-        logging.info("Invalid input for prot_in.")
-        sys.exit(1)
-    
-    return protein_dict
-
-def get_installed_hmm_paths(hmm_names):
-    #Loads relevant information from astra DB json file
-    parsed_json = initialize.load_json()
-    hmm_paths = []
-    for db in parsed_json['db_urls']:
-        if db['name'] in hmm_names and db['installed']:
-            hmm_paths.append(os.path.join(db['installation_dir'], db['name']))
-    return hmm_paths
 
 def define_kwargs(options):
     kwargs = {}
