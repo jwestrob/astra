@@ -23,17 +23,6 @@ from astra import initialize
 - Pickle protocol not supported for sequences
 - Thresholds are altered by pickling when parsing HMMs in parallel with ProcessPoolExecutor
 """
-def get_results_attributes(result):
-    bitscore = result.bitscore
-    evalue = result.evalue
-    cog = result.hmm_name
-    c_evalue = result.c_evalue
-    i_evalue = result.i_evalue
-    query = result.sequence_id
-    env_from = result.env_from
-    env_to = result.env_to
-    dom_bitscore = result.dom_bitscore
-    return [query, cog, bitscore, evalue, c_evalue, i_evalue, env_from, env_to, bitscore]
 
 #Store as a global so we don't have to define it multiple times
 Result = collections.namedtuple("Result", ["sequence_id", "hmm_name", "bitscore", "evalue","c_evalue", "i_evalue", 
@@ -167,7 +156,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
                     
         # Convert the results to a DataFrame
         #Is it necessary to cast it as a list?
-        result_df = pd.DataFrame(list(map(get_results_attributes, results)), columns=["sequence_id", "hmm_name", "bitscore", "evalue","c_evalue", "i_evalue", "env_from", "env_to", "dom_bitscore"])
+        result_df = pd.DataFrame(results)
         
         if meta == False:
             # Store the DataFrame in the dictionary
