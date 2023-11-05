@@ -40,33 +40,26 @@ Result = collections.namedtuple("Result", ["sequence_id", "hmm_name", "bitscore"
                                           "env_from", "env_to", "dom_bitscore"])
 
 def extract_sequences(results_dataframes_dict, outdir):
-    # Create tmp_ids directory within outdir
-    tmp_ids_dir = os.path.join(outdir, 'tmp_ids')
-    os.makedirs(tmp_ids_dir, exist_ok=True)
-    
     # Create fastas directory within outdir
     fastas_dir = os.path.join(outdir, 'fastas')
     os.makedirs(fastas_dir, exist_ok=True)
     
     for genome_file, df in results_dataframes_dict.items():
-        for hmm_name in df['hmm_name'].unique():
-            # Extract the IDs corresponding to the current HMM
-            ids_to_extract = df[df['hmm_name'] == hmm_name]['sequence_id'].tolist()
-            
-            # Write IDs to a temporary file
-            idfile = os.path.join(tmp_ids_dir, f"{hmm_name}_ids.txt")
-            with open(idfile, 'w') as f:
-                f.write("\n".join(ids_to_extract))
-            
+        for hmm_name, rows in df.groupby("hmm_name", sort=False):
+            # Encode the IDs into `bytes` because `SequenceFile` will 
+            # parse the names of the sequences as raw bytes too.
+            ids_to_extract = set(rows["sequence_id"].map(str.encode))
+
             # Define the output FASTA file for hits
             hits_fasta = os.path.join(fastas_dir, f"{hmm_name}.faa")
-            
-            # Run pullseq command to extract sequences
-            pullseq_cmd = f"cat {idfile} | pullseq -i {genome_file} -N >> {hits_fasta}"
-            subprocess.run(pullseq_cmd, shell=True)
 
-    # Remove tmp_ids directory
-    shutil.rmtree(tmp_ids_dir)
+            # Extract the sequences
+            with open(hits_fasta, "ab") as dst:
+                with pyhmmer.easel.SequenceFile(genome_file) as sequences:
+                    for sequence in sequences:
+                        if sequence.name in ids_to_extract:
+                            sequence.write(dst)
+
 
 def has_thresholds(x):
     flag = x.cutoffs.gathering_available() or \
