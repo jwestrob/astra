@@ -8,9 +8,8 @@ setup(
     install_requires=[
         'pyhmmer',
         'pandas',
-        'biopython',
         'tqdm',
-	'asyncio'
+	    'asyncio'
     ],
         entry_points={
             'console_scripts': ['Astra=main:main'],
