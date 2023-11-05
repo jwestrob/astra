@@ -1,8 +1,11 @@
-import os, sys, pandas as pd
+import collections
+import os
+import sys
+import time
+
+import pandas as pd
 import pyhmmer
 import pyhmmer.plan7
-import time 
-import collections
 
 Result = collections.namedtuple("Result", ["sequence_id", "evalue", 
                                       "env_from", "env_to", "bitscore"])
