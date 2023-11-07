@@ -1,54 +1,69 @@
 
-import argparse
-import asyncio
-import collections
-import logging
 import os
-import shutil
-import subprocess
 import sys
-import time
-from concurrent.futures import ProcessPoolExecutor
-from copy import deepcopy
-
-import numpy as np
-import pandas as pd
+import argparse
+import pandas as pd, numpy as np
 import pyhmmer
-from tqdm import tqdm
-
+import subprocess
+import collections
+import shutil
 from astra import initialize
+from tqdm import tqdm
+from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+import asyncio
+import logging
+import time
 
 # Pyhmmer-specific issues:
 """
 - Pickle protocol not supported for sequences
 - Thresholds are altered by pickling when parsing HMMs in parallel with ProcessPoolExecutor
 """
+def get_results_attributes(result):
+    bitscore = result.bitscore
+    evalue = result.evalue
+    cog = result.hmm_name
+    c_evalue = result.c_evalue
+    i_evalue = result.i_evalue
+    query = result.sequence_id
+    env_from = result.env_from
+    env_to = result.env_to
+    dom_bitscore = result.dom_bitscore
+    return [query, cog, bitscore, evalue, c_evalue, i_evalue, env_from, env_to, bitscore]
 
 #Store as a global so we don't have to define it multiple times
 Result = collections.namedtuple("Result", ["sequence_id", "hmm_name", "bitscore", "evalue","c_evalue", "i_evalue", 
                                           "env_from", "env_to", "dom_bitscore"])
 
 def extract_sequences(results_dataframes_dict, outdir):
+    # Create tmp_ids directory within outdir
+    tmp_ids_dir = os.path.join(outdir, 'tmp_ids')
+    os.makedirs(tmp_ids_dir, exist_ok=True)
+    
     # Create fastas directory within outdir
     fastas_dir = os.path.join(outdir, 'fastas')
     os.makedirs(fastas_dir, exist_ok=True)
     
     for genome_file, df in results_dataframes_dict.items():
-        for hmm_name, rows in df.groupby("hmm_name", sort=False):
-            # Encode the IDs into `bytes` because `SequenceFile` will 
-            # parse the names of the sequences as raw bytes too.
-            ids_to_extract = set(rows["sequence_id"].map(str.encode))
-
+        for hmm_name in df['hmm_name'].unique():
+            # Extract the IDs corresponding to the current HMM
+            ids_to_extract = df[df['hmm_name'] == hmm_name]['sequence_id'].tolist()
+            
+            # Write IDs to a temporary file
+            idfile = os.path.join(tmp_ids_dir, f"{hmm_name}_ids.txt")
+            with open(idfile, 'w') as f:
+                f.write("\n".join(ids_to_extract))
+            
             # Define the output FASTA file for hits
             hits_fasta = os.path.join(fastas_dir, f"{hmm_name}.faa")
+            
+            # Run pullseq command to extract sequences
+            pullseq_cmd = f"cat {idfile} | pullseq -i {genome_file} -N >> {hits_fasta}"
+            subprocess.run(pullseq_cmd, shell=True)
 
-            # Extract the sequences
-            with open(hits_fasta, "ab") as dst:
-                with pyhmmer.easel.SequenceFile(genome_file) as sequences:
-                    for sequence in sequences:
-                        if sequence.name in ids_to_extract:
-                            sequence.write(dst)
-
+    # Remove tmp_ids directory
+    shutil.rmtree(tmp_ids_dir)
 
 def has_thresholds(x):
     flag = x.cutoffs.gathering_available() or \
@@ -156,7 +171,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
                     
         # Convert the results to a DataFrame
         #Is it necessary to cast it as a list?
-        result_df = pd.DataFrame(results)
+        result_df = pd.DataFrame(list(map(get_results_attributes, results)), columns=["sequence_id", "hmm_name", "bitscore", "evalue","c_evalue", "i_evalue", "env_from", "env_to", "dom_bitscore"])
         
         if meta == False:
             # Store the DataFrame in the dictionary
@@ -262,7 +277,7 @@ def parse_hmms(hmm_in):
 
 def process_fasta(fasta_file):
     # Function to handle each file for parallelism
-    with pyhmmer.easel.SequenceFile(fasta_file, digital=True) as seq_file:
+    with pyhmmer.easel.SequenceFile(fasta_file, digital=True, alphabet=pyhmmer.easel.Alphabet.amino()) as seq_file:
         sequences = seq_file.read_block()
     return fasta_file, sequences
 
@@ -496,8 +511,9 @@ def main(args):
             extract_sequences(results_dataframes_dict, outdir)
 
         all_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
-        all_results_df.to_csv(os.path.join(outdir,'all_hits_df.tsv'), sep='\t', index=False)
-
+        all_results_df.to_csv(os.path.join(outdir,'user_hmms_hits_df.tsv'), sep='\t', index=False)
+        del user_hmm
+s
     if installed_hmms is not None:
         #check HMM input and parse
 
