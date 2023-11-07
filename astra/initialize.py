@@ -7,6 +7,7 @@ import urllib.request
 import argparse
 import subprocess
 import textwrap
+import pyhmmer.plan7
 from tqdm import tqdm 
 import pandas as pd
 
@@ -241,31 +242,16 @@ def add_threshold(hmm_file_path, threshold):
         # let's just ignore it and not add bad thresholds
         return
 
-    #I'm going to add the threshold in all three fields.
-    #I know it's unconventional but LEARN TO LIVE WITH IT
+    with pyhmmer.plan7.HMMFile(hmm_file_path) as hmm_file:
+        hmm = hmm_file.read()
 
-    threshold_lines = [
-                       'GA    {} {};'.format(threshold, threshold),
-                       'TC    {} {};'.format(threshold, threshold), 
-                       'NC    {} {};'.format(threshold, threshold)
-                      ]
-    #parse HMM file
-    with open(hmm_file_path, 'r') as infile:
-        hmm_lines = [x.rstrip() for x in infile.readlines()]
+    hmm.cutoffs.gathering = threshold, threshold
+    hmm.cutoffs.trusted = threshold, threshold
+    hmm.cutoffs.noise = threshold, threshold
+
+    with open(hmm_file_path, "wb") as dst:
+        hmm.write(dst)
     
-    #Thresholds need to go on the line after 'CKSUM''
-    cksum_line = list(filter(lambda x: x.startswith('CKSUM'), hmm_lines))[0]
-    cksum_idx = hmm_lines.index(cksum_line)
-
-    #Insert the lines in the proper place; requires some fuckery
-    new_lines = hmm_lines
-    for line in reversed(threshold_lines):
-        new_lines.insert(cksum_idx + 1, line)
-
-    #Write the thresholded file to the same path as before
-    with open(hmm_file_path, 'w') as outfile:
-        for element in new_lines:
-            outfile.writelines(element + '\n')
     return
 
 def install_databases(db_name, parsed_json=None,  db_path=None):
