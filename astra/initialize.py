@@ -18,7 +18,6 @@ import pandas as pd
 import requests
 from tqdm import tqdm
 
-
 class TqdmUpTo(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
         if tsize is not None:
