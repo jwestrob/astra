@@ -1,15 +1,23 @@
-import json
-import os, sys, requests
-import shutil
-import tarfile
-import gzip
-import urllib.request
 import argparse
+import gzip
+import json
+import os
+import shutil
 import subprocess
+import sys
+import tarfile
 import textwrap
+<<<<<<< HEAD
 import pyhmmer.plan7
 from tqdm import tqdm 
+=======
+import urllib.request
+
+>>>>>>> fba485f (Run `isort` on source files)
 import pandas as pd
+import requests
+from tqdm import tqdm
+
 
 class TqdmUpTo(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):

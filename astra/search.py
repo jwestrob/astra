@@ -1,19 +1,22 @@
 
-import os
-import sys
 import argparse
-import pandas as pd, numpy as np
-import pyhmmer
-import subprocess
-import collections
-import shutil
-from astra import initialize
-from tqdm import tqdm
-from copy import deepcopy
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import asyncio
+import collections
 import logging
+import os
+import shutil
+import subprocess
+import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
+from copy import deepcopy
+
+import numpy as np
+import pandas as pd
+import pyhmmer
+from tqdm import tqdm
+
+from astra import initialize
 
 # Pyhmmer-specific issues:
 """
