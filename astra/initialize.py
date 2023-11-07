@@ -7,13 +7,9 @@ import subprocess
 import sys
 import tarfile
 import textwrap
-<<<<<<< HEAD
 import pyhmmer.plan7
-from tqdm import tqdm 
-=======
+from tqdm import tqdm
 import urllib.request
-
->>>>>>> fba485f (Run `isort` on source files)
 import pandas as pd
 import requests
 from tqdm import tqdm
