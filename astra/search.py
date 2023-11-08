@@ -512,8 +512,8 @@ def main(args):
 
         all_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
         all_results_df.to_csv(os.path.join(outdir,'user_hmms_hits_df.tsv'), sep='\t', index=False)
-        del user_hmm
-s
+        del user_hmms
+        
     if installed_hmms is not None:
         #check HMM input and parse
 
