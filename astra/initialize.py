@@ -10,6 +10,7 @@ import textwrap
 import pyhmmer.plan7
 from tqdm import tqdm
 import urllib.request
+from platformdirs import user_config_dir
 import pandas as pd
 import requests
 from tqdm import tqdm
@@ -21,70 +22,43 @@ class TqdmUpTo(tqdm):
         self.update(b * bsize - self.n)
 
 def load_config():
-    script_dir = os.path.dirname(os.path.realpath(__file__))
-    default_hmm_db_json = os.path.join(script_dir, 'hmm_databases.json')
+    app_name = "Astra"
+    app_author = "YourOrg"  # Replace with the actual name of your organization or app author
 
-    config_path = os.path.join(os.path.expanduser('~'), '.astra', 'astra_config.json')
-    if not os.path.exists(config_path):
-        print("Welcome to Astra! It looks like this is your first time running the package.")
-        print("A configuration file will be created at ~/.astra/astra_config.json.")
-        print("By default, HMM databases will be installed in ~/.astra/databases/.")
+    # The default directory for the HMM databases.json (inside the package directory)
+    package_dir = os.path.dirname(os.path.abspath(__file__))
+    default_db_json_path = os.path.join(package_dir, 'hmm_databases.json')
 
-        user_path = input("Would you like to specify an alternative installation directory? (Press Enter to use the default): ")
-
-        if user_path:
-            if not os.path.exists(user_path):
-                try:
-                    os.makedirs(user_path, exist_ok=True)
-                except Exception as e:
-                    print(f"Error: Could not create directory at {user_path}. Please make sure the path is valid.")
-                    print(str(e))
-                    exit(1)
-            db_path = user_path
-        else:
-            db_path = os.path.join(os.path.expanduser('~'), '.astra', 'databases')
-        
-        # Create the directory if it doesn't exist
-        os.makedirs(db_path, exist_ok=True)
-        
-        # Copy the default hmm_databases.json to the new directory
-        shutil.copy(default_hmm_db_json, db_path)
-
-        os.makedirs(os.path.join(os.path.expanduser('~'), '.astra'), exist_ok=True)
-        config = {"db_path": db_path}
-        
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=4)
-        
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+    # Attempt to load the existing hmm_databases.json
+    if os.path.exists(default_db_json_path):
+        with open(default_db_json_path, 'r') as f:
+            hmm_databases = json.load(f)
     else:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        print("hmm_databases.json not found!! Please raise an issue on github.")
+        sys.exit()
+
+    # If 'db_path' is empty, prompt the user for the directory to store HMM databases
+    if not hmm_databases.get('db_path'):
+        # Use platformdirs to get the standard configuration directory
+        default_db_path = user_config_dir(app_name, app_author)
+        print(f"The default directory for HMM databases is: {default_db_path}")
+        user_input = input("Would you like to use the default directory for the HMM databases? [Y/n] ").strip().lower()
+        if user_input == 'n':
+            hmm_databases['db_path'] = input("Please enter the full path to the desired HMM database directory: ")
+        else:
+            hmm_databases['db_path'] = default_db_path
         
-        # Ensure that hmm_databases.json exists in the specified directory
-        target_hmm_db_json = os.path.join(config['db_path'], 'hmm_databases.json')
-        if not os.path.exists(target_hmm_db_json):
-            shutil.copy(default_hmm_db_json, config['db_path'])
+        # Ensure the HMM database directory exists
+        os.makedirs(hmm_databases['db_path'], exist_ok=True)
 
-    return config
-
-
-
-
-
-def load_json():
-    #Loads controller json file storing database location; initializes database directory if this is the first run
-    config = load_config()
-
-    #Database path
-    db_path = config['db_path']
-    json_path = os.path.join(db_path, 'hmm_databases.json')
-
-    with open(json_path, 'r') as f:
-        hmm_databases = json.load(f)
+        # Update the hmm_databases.json file with the new db_path
+        with open(default_db_json_path, 'w') as f:
+            json.dump(hmm_databases, f)
 
     return hmm_databases
+
+
+
 
 
 
@@ -257,48 +231,42 @@ def add_threshold(hmm_file_path, threshold):
     
     return
 
-def install_databases(db_name, parsed_json=None,  db_path=None):
+def install_databases(db_name, parsed_json=None, db_path=None):
 
-    #Are you trying to install KOFAM? Let's have separate logic for that.
+    # Are you trying to install KOFAM? Let's have separate logic for that.
     if db_name == 'KOFAM':
         return install_KOFAM()
 
-    #Did you call this as a function from an external script?
-    #Want to model that function call as 'intialize.install_databases(db_name)'
-    #So must leave out parsed_json/db_path
+    # Did you call this as a function from an external script?
+    # Want to model that function call as 'initialize.install_databases(db_name)'
+    # So must leave out parsed_json/db_path
     if parsed_json is None:
         parsed_json = load_json()
     if db_path is None:
         config = load_config()
-        db_path = config['db_path']      
+        db_path = config['db_path']
 
-    for db in parsed_json['db_urls']:
-        if (db['installed'] == True and db['installation_dir'] != '') and db['name'] == db_name:
-            #Database is already installed; just say so.
-            print("Database {} already installed.".format(db['name']))
-            continue
+    # Flag to check if we need to update the JSON file
+    update_required = False
+
+    for index, db in enumerate(parsed_json['db_urls']):
         if db['name'] == db_name:
-            target_folder = os.path.abspath(os.path.join(db_path, db_name))  # Use absolute path
-            
-            # Check if the folder exists and if it's empty
-            if os.path.exists(target_folder):
-                if len(os.listdir(target_folder)) != 0:
-                    print(f"Folder for {db_name} exists and is not empty. Skipping download.")
-                    if "installation_dir" not in db:
-                        db["installation_dir"] = target_folder
-                        # Update the JSON file to reflect the new installation_dir
-                        json_path = os.path.join(db_path, 'hmm_databases.json')  
-                        with open(json_path, 'w') as f:
-                            json.dump(parsed_json, f, indent=4)
-                    elif db['installation_dir'] == '':
-                        db["installation_dir"] = target_folder
-                        # Update the JSON file to reflect the new installation_dir
-                        json_path = os.path.join(db_path, 'hmm_databases.json')  
-                        with open(json_path, 'w') as f:
-                            json.dump(parsed_json, f, indent=4)
-                    return
-            else:
-                os.makedirs(target_folder, exist_ok=True)
+            # Check if database is already installed
+            if db['installed'] and db['installation_dir']:
+                print(f"Database {db_name} already installed.")
+                continue
+
+            target_folder = os.path.abspath(os.path.join(db_path, db_name))
+
+            if os.path.exists(target_folder) and os.listdir(target_folder):
+                print(f"Folder for {db_name} exists and is not empty. Skipping download.")
+                if not db.get('installation_dir'):
+                    db['installation_dir'] = target_folder
+                    update_required = False
+                continue
+
+            # Create target directory if it does not exist
+            os.makedirs(target_folder, exist_ok=True)
             
             print(f"Downloading {db_name} to {target_folder}...")
             
@@ -306,25 +274,34 @@ def install_databases(db_name, parsed_json=None,  db_path=None):
             url = db['url']
 
             if "github.com" in url:
-                # Special case for GitHub URLs
-                url = url.rstrip("/")
-                if 'Karthik' in db_name:
-                    #Hard-code this one because the directory structure is different compared to the other github repos 
-                    repo_api_url = 'https://api.github.com/repos/kanantharaman/metabolic-hmms/contents/'
+                if '/blob/' in url:
+                    # URL points to a single file, convert to raw URL
+                    raw_url = url.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/')
+                    # Proceed to download the single file using the raw URL
+                    file_name = raw_url.split('/')[-1]
+                    download_path = os.path.join(target_folder, file_name)
+                    with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
+                        urllib.request.urlretrieve(raw_url, download_path, reporthook=t.update_to)
                 else:
-                    repo_api_url = url.replace("github.com", "api.github.com/repos").replace("/tree/master", "/contents")
-                response = requests.get(repo_api_url)
-                if response.status_code == 200:
-                    files = response.json()
-                    for file in files:
-                        file_name = file['name']
-                        if file_name.lower().endswith('.hmm'):  # Only download .hmm or .HMM files
-                            file_url = file['download_url']
-                            download_path = os.path.join(target_folder, file_name)
-                            with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
-                                urllib.request.urlretrieve(file_url, download_path, reporthook=t.update_to)
-                else:
-                    print(f"Failed to fetch GitHub directory: {response.status_code}")
+                    # Special case for GitHub URLs
+                    url = url.rstrip("/")
+                    if 'Karthik' in db_name:
+                        #Hard-code this one because the directory structure is different compared to the other github repos 
+                        repo_api_url = 'https://api.github.com/repos/kanantharaman/metabolic-hmms/contents/'
+                    else:
+                        repo_api_url = url.replace("github.com", "api.github.com/repos").replace("/tree/master", "/contents")
+                    response = requests.get(repo_api_url)
+                    if response.status_code == 200:
+                        files = response.json()
+                        for file in files:
+                            file_name = file['name']
+                            if file_name.lower().endswith('.hmm'):  # Only download .hmm or .HMM files
+                                file_url = file['download_url']
+                                download_path = os.path.join(target_folder, file_name)
+                                with TqdmUpTo(unit='B', unit_scale=True, miniters=1, desc=file_name) as t:  
+                                    urllib.request.urlretrieve(file_url, download_path, reporthook=t.update_to)
+                    else:
+                        print(f"Failed to fetch GitHub directory: {response.status_code}")
 
 
             # Check if the URL points to a directory (ends with '/')
@@ -372,15 +349,18 @@ def install_databases(db_name, parsed_json=None,  db_path=None):
 
             
             print(f"{db_name} successfully downloaded and extracted.")
-            db['installed'] = True
-            db["installation_dir"] = target_folder  # Add installation directory
-            
-            # Update the JSON file to reflect the installed status
-            json_path = os.path.join(db_path, 'hmm_databases.json')  # Use db_path here
-            with open(json_path, 'w') as f:
-                json.dump(parsed_json, f, indent=4)
-                
-            return
+            parsed_json['db_urls'][index]['installed'] = True
+            parsed_json['db_urls'][index]['installation_dir'] = target_folder
+            update_required = True
+            break  # Break after updating the relevant database
+
+
+    if update_required:
+        print(db_path)
+        # Update the JSON file outside the loop to reflect the installed status and installation_dir
+        json_path = os.path.join(db_path, 'hmm_databases.json')
+        with open(json_path, 'w') as f:
+            json.dump(parsed_json, f, indent=4)
 
 
 
@@ -404,15 +384,12 @@ def show_installed_databases(parsed_json):
 
 def main(args):
 
-    # Load JSON containing information about available HMM databases
-    parsed_json = load_json()
-
     # Load configuration to get the database path
-    config = load_config()
+    parsed_json = load_config()
 
     
     
-    db_path = config['db_path']
+    db_path = parsed_json['db_path']
     
     # Extract HMM database names from command line arguments
     hmms = args.hmms

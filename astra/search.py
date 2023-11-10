@@ -91,9 +91,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
         print("Separating thresholded and non-thresholded HMMs...")
         logging.info("Separating thresholded and non-thresholded HMMs...")
 
-        with ProcessPoolExecutor(threads) as executor:
-            # Create a Boolean mask indicating which HMMs have thresholds
-            has_thresholds_mask = list(executor.map(has_thresholds, hmms))
+        has_thresholds_mask = list(map(has_thresholds, hmms))
 
         # Convert the mask to a NumPy array for efficient indexing
         has_thresholds_mask_np = np.array(has_thresholds_mask)
@@ -269,6 +267,8 @@ def parse_hmms(hmm_in):
         logging.info("If you used pre-installed HMMs, check hmm_databases.json")
         print("Which is located in the databases directory.")
         logging.info("Which is located in the databases directory.")
+
+        print("Thing that threw the error: {}".format(hmm_in))
         sys.exit(1)
 
     print("HMMs parsed.")
@@ -325,7 +325,7 @@ def parse_protein_input(prot_in, threads):
 
 def get_installed_hmm_paths(hmm_names):
     #Loads relevant information from astra DB json file
-    parsed_json = initialize.load_json()
+    parsed_json = initialize.load_config()
     hmm_paths = []
     for db in parsed_json['db_urls']:
         if db['name'] in hmm_names and db['installed']:
@@ -533,7 +533,7 @@ def main(args):
             logging.info("Searching with pre-installed HMMs: {}".format(installed_hmm_names[0]))
 
         #Load JSON with database and procedural information
-        parsed_json = initialize.load_json()
+        parsed_json = initialize.load_config()
 
         if 'all_prot' in installed_hmm_names:
 

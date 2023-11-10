@@ -40,6 +40,11 @@ def main():
     parser_search.add_argument('--outdir', required=True, help='Output directory for results.')
     parser_search.add_argument('--installed_hmms', default=None, type=str, help='Comma-separated list of installed HMM databases to use. If you specify a database that is not installed, Astra will not utilize it here. Go install it with initialize')
 
+    #16rp 
+    parser_search.add_argument('--16rp', action='store_true', default=False, help='Retrieve 16 ribosomal protein markers for concatenated phylogenetic analysis [BACTERIA + ARCHAEA]')
+    parser_search.add_argument('--15rp', action='store_true', default=False, help='Retrieve 15 ribosomal protein markers for concatenated phylogenetic analysis [ARCHAEA ONLY]')
+    parser_search.add_argument('--synteny', type=float, default=None, help='[16/15RP ONLY] Percentage of RP markers that must be present in a syntenic block (max gap 3 ORFs) to include the genome in the final alignment. (e.g. 0.5)')
+
     # Optional arguments
     parser_search.add_argument("--evalue", type=str, default=None, help="Custom e-value threshold for HMM search.")
     parser_search.add_argument("--bitscore", type=str, default=None, help="Custom bitscore threshold for HMM search.")
