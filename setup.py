@@ -9,6 +9,7 @@ setup(
         'pyhmmer',
         'pandas',
         'tqdm',
+        'requests',
 	    'asyncio'
     ],
         entry_points={
