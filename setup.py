@@ -13,6 +13,6 @@ setup(
 	    'asyncio'
     ],
         entry_points={
-            'console_scripts': ['Astra=main:main'],
+            'console_scripts': ['Astra=astra.main:main'],
         },
 )
