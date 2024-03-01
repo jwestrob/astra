@@ -27,7 +27,7 @@ def load_config():
 
     # The default directory for the HMM databases.json (inside the package directory)
     package_dir = os.path.dirname(os.path.abspath(__file__))
-    default_db_json_path = os.path.join(package_dir, 'hmm_databases.json')
+    default_db_json_path = os.path.join(user_config_dir(app_name, app_author), 'hmm_databases.json')
 
     # Attempt to load the existing hmm_databases.json
     if os.path.exists(default_db_json_path):

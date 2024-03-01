@@ -9,6 +9,7 @@ import collections
 import shutil
 from astra import initialize
 from tqdm import tqdm
+from platformdirs import user_config_dir
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import asyncio
@@ -547,12 +548,8 @@ def main(args):
         for hmm_db in installed_hmm_names:
 
             installed_hmm_in = next((item for item in parsed_json['db_urls'] if item["name"] == hmm_db), None)
-            print(installed_hmm_in)
-
             if installed_hmm_in is not None:
-                print("IN: ", installed_hmm_in)
                 installation_dir = installed_hmm_in['installation_dir']
-                print("DIR: ", installation_dir)
                 db_hmms = parse_hmms(installation_dir)
             else:
                 #No installation_dir specified; print this and move on
