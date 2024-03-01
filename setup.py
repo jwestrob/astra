@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='Astra',
+    name='astra',
     version='0.1',
     packages=find_packages(),
     install_requires=[
@@ -13,6 +13,6 @@ setup(
 	    'asyncio'
     ],
         entry_points={
-            'console_scripts': ['Astra=astra.main:main'],
+            'console_scripts': ['astra=astra.main:main'],
         },
 )
