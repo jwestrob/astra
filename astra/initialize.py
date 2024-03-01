@@ -61,7 +61,6 @@ def load_config():
 
 
 
-
 def show_available_databases(parsed_json):
     print("Available databases:")
     
@@ -107,7 +106,7 @@ def install_KOFAM():
     #Separate function to install KOFAM because we need to manually add bitscore cutoffs to HMM models
     #which drastically reduces size of the output (288M from a 36M metaproteome vs. Pfam's 24M output!!)
     db_name = 'KOFAM'
-    parsed_json = load_json()
+    parsed_json = load_config()
     config = load_config()
     db_path = config['db_path']    
 
@@ -157,17 +156,18 @@ def install_KOFAM():
                         shutil.move(os.path.join(single_dir, file_to_move), target_folder)
                     os.rmdir(single_dir)  # Remove the now-empty directory
             
-            print(f"{db_name} successfully downloaded and extracted.")
 
-            #Mark installation as complete in hmm_databases.json
+            # BUG IS HERE COME FIND ME
+            # Mark installation as complete in hmm_databases.json
             db['installed'] = True
             db["installation_dir"] = target_folder  # Add installation directory
-
             # Write changes to the JSON file 
             json_path = os.path.join(db_path, 'hmm_databases.json')  # Use db_path here
+            print(json_path)
             with open(json_path, 'w') as f:
                 json.dump(parsed_json, f, indent=4)
-                
+            print(f"{db_name} successfully downloaded and extracted.")
+
     ####
     #Now we've installed the HMMs, let's grab profiles.gz.
     ####

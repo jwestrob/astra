@@ -498,7 +498,7 @@ def main(args):
 
     #Check protein input and parse
     protein_dict = parse_protein_input(prot_in, threads)
-
+    
     if hmm_in is not None:
         print("Searching with user-provided HMM(s)...")
         logging.info("Searching with user-provided HMM(s)...")
@@ -544,18 +544,21 @@ def main(args):
                 if db['molecule_type'] == 'protein' and db['installed']:
                     installed_hmm_names.append(db['name'])
 
-
         for hmm_db in installed_hmm_names:
+
             installed_hmm_in = next((item for item in parsed_json['db_urls'] if item["name"] == hmm_db), None)
+            print(installed_hmm_in)
+
             if installed_hmm_in is not None:
+                print("IN: ", installed_hmm_in)
                 installation_dir = installed_hmm_in['installation_dir']
+                print("DIR: ", installation_dir)
                 db_hmms = parse_hmms(installation_dir)
             else:
                 #No installation_dir specified; print this and move on
                 print("No installation_dir specified for db " + hmm_db)
                 logging.info("No installation_dir specified for db " + hmm_db)
                 continue
-
             #if we're in meta mode, we don't want to keep all that shit in memory
             #and the hmmsearch function will write a file for each DB and each protein file
             #because they're huge
