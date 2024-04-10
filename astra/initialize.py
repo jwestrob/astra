@@ -14,12 +14,43 @@ from platformdirs import user_config_dir
 import pandas as pd
 import requests
 from tqdm import tqdm
+from shutil import copyfile
+
 
 class TqdmUpTo(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
         if tsize is not None:
             self.total = tsize
         self.update(b * bsize - self.n)
+
+def initialize_config():
+    app_name = "Astra"
+    app_author = "YourOrg"  # Replace with the actual name of your organization or app author
+
+    # The default directory for the HMM databases.json (inside the package directory)
+    package_dir = os.path.dirname(os.path.abspath(__file__))
+    default_db_json_path = os.path.join(user_config_dir(app_name, app_author), 'hmm_databases.json')
+
+    # Check if hmm_databases.json exists in the user's config directory
+    if not os.path.exists(default_db_json_path):
+        # Path to the hmm_databases.json file in the repository/package directory
+        repo_db_json_path = os.path.join(package_dir, 'hmm_databases.json')
+        
+        # Check if hmm_databases.json exists in the repository/package directory
+        if os.path.exists(repo_db_json_path):
+            # Copy hmm_databases.json from the repository/package directory to the user's config directory
+            os.makedirs(os.path.dirname(default_db_json_path), exist_ok=True)  # Ensure the directory exists
+            copyfile(repo_db_json_path, default_db_json_path)
+            print(f"'hmm_databases.json' copied to {default_db_json_path}")
+        else:
+            print("hmm_databases.json not found in the package directory. Please ensure it's included in the repository.")
+            sys.exit()
+
+    # Load the hmm_databases.json now that it's ensured to exist
+    with open(default_db_json_path, 'r') as f:
+        hmm_databases = json.load(f)
+
+    return hmm_databases
 
 def load_config():
     app_name = "Astra"
@@ -385,7 +416,7 @@ def show_installed_databases(parsed_json):
 def main(args):
 
     # Load configuration to get the database path
-    parsed_json = load_config()
+    parsed_json = initialize_config()
 
     
     
