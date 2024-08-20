@@ -73,126 +73,73 @@ def has_thresholds(x):
 
     return flag
 
-def hmmsearch(protein_dict, hmms, threads, options, db_name = None):
-    #Runs HMMscan on all provided FASTA files using 'threads' threads
-    #uses default parameters unless specified
-
-
-    results_dataframes = {}  # Initialize an empty dictionary to store results as DataFrames
-
-    #Construct search options; need to make sure names are consistent with pyHMMER
-    #and we only specify one bitscore threshold
+# Modify the hmmsearch function
+def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
+    results_dataframes = {}
     hmmsearch_kwargs = define_kwargs(options)
 
-    #Do we need to check whether we have a mixture of thresholded and non-thresholded models?
-    if 'bit_cutoffs' in hmmsearch_kwargs and not db_name in ['PFAM', 'FOAM']:
-        #pyHMMER rightly throws an error when you try to use thresholds that don't exist in the model.
-        #Let's separate these out because often a single set of HMMs will contain thresholded
-        #as well as unthresholded models.
-        print("Separating thresholded and non-thresholded HMMs...")
-        logging.info("Separating thresholded and non-thresholded HMMs...")
-
-        has_thresholds_mask = list(map(has_thresholds, hmms))
-
-        # Convert the mask to a NumPy array for efficient indexing
-        has_thresholds_mask_np = np.array(has_thresholds_mask)
-
-        # Filter HMMs with thresholds using the mask
-        hmms_with_thresholds = np.array(hmms)[has_thresholds_mask_np].tolist()
-
-        # Filter HMMs without thresholds using the inverse of the mask
-        hmms_without_thresholds = np.array(hmms)[~has_thresholds_mask_np].tolist()
-
-        if len(hmms_with_thresholds) == 0:
-            print("Bitscore cutoffs were specified, but specified HMMs do not contain these thresholds.")
-            print("Defaulting to other specified threshold parameters (if none were specified, none will be applied)...")
-            logging.info("Bitscore cutoffs were specified, but specified HMMs do not contain these thresholds.")
-            logging.info("Defaulting to other specified threshold parameters (if none were specified, none will be applied)...")
-            hmms_with_thresholds = None
-
-        if len(hmms_without_thresholds) == 0:
-            hmms_without_thresholds = None
-
-
-
-        #This was a bit tricky. pyHMMER doesn't like NoneType for bit_cutoffs
-        #And I don't want to specify any other thresholds for models with cutoffs
-        #So we have to isolate that parameter, and remove it from the kwargs 
-        #Used in a search for non-thresholded models
-        bit_cutoff = hmmsearch_kwargs['bit_cutoffs']
-
-        del hmmsearch_kwargs['bit_cutoffs']
-    elif db_name in ['PFAM', 'FOAM'] and 'bit_cutoffs' in hmmsearch_kwargs:
-
-        #These dbs have thresholds for every HMM
-        hmms_with_thresholds = hmms
-        hmms_without_thresholds = None
-        bit_cutoff = hmmsearch_kwargs['bit_cutoffs']
-    else:
-        #All unthresholded
-        hmms_with_thresholds = None
-        hmms_without_thresholds = hmms
-        
-
-    print("Searching...")
+    def get_best_cutoff(hmm):
+        if options['cascade']:
+            cutoff_order = [
+                hmmsearch_kwargs['preferred_cutoff'],
+                'trusted',
+                'gathering',
+                'noise'
+            ]
+            for cutoff in cutoff_order:
+                if getattr(hmm.cutoffs, f"{cutoff}_available")():
+                    return cutoff
+        elif 'bit_cutoffs' in hmmsearch_kwargs:
+            if getattr(hmm.cutoffs, f"{hmmsearch_kwargs['bit_cutoffs']}_available")():
+                return hmmsearch_kwargs['bit_cutoffs']
+        return None
 
     for fasta_file, sequences in tqdm(protein_dict.items()):
         results = []
         
-        if hmms_with_thresholds is not None:
-            #print("Searching with {} thresholded HMMs...".format(len(hmms_with_thresholds)))
-            # Run the thresholded HMMs
-            for hits in pyhmmer.hmmsearch(hmms_with_thresholds, sequences, cpus=threads, bit_cutoffs=bit_cutoff):
-                cog = hits.query_name.decode()
-                for hit in hits:
-                    if hit.included:
-                        hit_name = hit.name.decode()
-                        full_bitscore = hit.score 
-                        full_evalue = hit.evalue
-                        for domain in hit.domains.reported:
-                            results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
-                                  domain.i_evalue, domain.env_from, domain.env_to, domain.score))
+        # Group HMMs by their best available cutoff
+        hmm_groups = {}
+        for hmm in hmms:
+            best_cutoff = get_best_cutoff(hmm)
+            hmm_groups.setdefault(best_cutoff, []).append(hmm)
 
-        if hmms_without_thresholds is not None:
-            #print("Searching with {} unthresholded HMMs...".format(len(hmms_without_thresholds)))
-            #print(hmmsearch_kwargs)
-            #Run the unthresholded HMMs, making sure to specify bit_cutoffs=None
-            for hits in pyhmmer.hmmsearch(hmms_without_thresholds, sequences, cpus=threads, **hmmsearch_kwargs):
-                cog = hits.query_name.decode()
-                for hit in hits:
-                    if hit.included:
-                        hit_name = hit.name.decode()
-                        full_bitscore = hit.score 
-                        full_evalue = hit.evalue
-                        for domain in hit.domains.reported:
-                            results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
-                                  domain.i_evalue, domain.env_from, domain.env_to, domain.score))
-                    
-        # Convert the results to a DataFrame
-        #Is it necessary to cast it as a list?
-        result_df = pd.DataFrame(list(map(get_results_attributes, results)), columns=["sequence_id", "hmm_name", "bitscore", "evalue","c_evalue", "i_evalue", "env_from", "env_to", "dom_bitscore"])
+        # Perform searches for each group
+        for cutoff, hmm_group in hmm_groups.items():
+            kwargs = hmmsearch_kwargs.copy()
+            if cutoff:
+                kwargs['bit_cutoffs'] = cutoff
+            elif 'bit_cutoffs' in kwargs:
+                del kwargs['bit_cutoffs']
+            
+            if 'preferred_cutoff' in kwargs:
+                del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
+
+            for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
+                process_hits(hits, results)
+
+        result_df = pd.DataFrame(list(map(get_results_attributes, results)), 
+                                 columns=["sequence_id", "hmm_name", "bitscore", "evalue", "c_evalue", 
+                                          "i_evalue", "env_from", "env_to", "dom_bitscore"])
         
-        if meta == False:
-            # Store the DataFrame in the dictionary
+        if not meta:
             results_dataframes[fasta_file] = result_df
         else:
-            #If meta is true, we don't want to hold all the results in RAM. We want to write an output file for every DB-metagenome search.
             basename_fasta = os.path.basename(fasta_file)
-            try:
-                #Make sure the outdir exists and db_name is specified
-                result_df.to_csv(os.path.join(outdir, basename_fasta + '_' + db_name + '_results.tsv'), sep='\t', index=False)
-            except:
-                #Hey man idk, maybe it doesn't? Maybe you called search as a function from a python script?
-                #If so, write output files to the current working directory instead.
-                if db_name is None:
-                    #Is there no db_name and meta is specified?
-                    result_df.to_csv(os.path.join(outdir, basename_fasta + '_results.tsv'), sep='\t', index=False)
-                else:
-                    result_df.to_csv(fasta_file + '_' + db_name + '.results.tsv', sep='\t', index=False)
-    if meta == False:
-        return results_dataframes
-    else:
-        return
+            output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
+            result_df.to_csv(os.path.join(outdir, output_filename), sep='\t', index=False)
+
+    return results_dataframes if not meta else None
+
+def process_hits(hits, results):
+    cog = hits.query_name.decode()
+    for hit in hits:
+        if hit.included:
+            hit_name = hit.name.decode()
+            full_bitscore = hit.score 
+            full_evalue = hit.evalue
+            for domain in hit.domains.reported:
+                results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
+                              domain.i_evalue, domain.env_from, domain.env_to, domain.score))
 
 def parse_single_hmm(hmm_path):
     #Single-file parser for parallelization
@@ -335,9 +282,18 @@ def get_installed_hmm_paths(hmm_names):
 
 def define_kwargs(options):
     kwargs = {}
-
-    #Calibrated threshold parameters
-    if options['cut_ga']:
+    
+    if options['cascade']:
+        kwargs['bit_cutoffs'] = 'cascade'
+        if options['cut_tc']:
+            kwargs['preferred_cutoff'] = 'trusted'
+        elif options['cut_ga']:
+            kwargs['preferred_cutoff'] = 'gathering'
+        elif options['cut_nc']:
+            kwargs['preferred_cutoff'] = 'noise'
+        else:
+            kwargs['preferred_cutoff'] = 'trusted'  # Default to trusted if no specific cutoff is specified
+    elif options['cut_ga']:
         kwargs['bit_cutoffs'] = 'gathering'
     elif options['cut_nc']:
         kwargs['bit_cutoffs'] = 'noise'
@@ -464,18 +420,20 @@ def main(args):
 
     #initialize default options
     hmmsearch_options = {
-    "cut_ga":cut_ga,
-    "cut_nc":cut_nc,
-    "cut_tc":cut_tc,
-    "evalue":evalue,
-    "bitscore":bitscore,
-    "domE":args.domE,
-    "domT":args.domT,
-    "incE":args.incE,
-    "incT":args.incT,
-    "incdomE":args.incdomE,
-    "incdomT":args.incdomT,
+        "cascade": args.cascade,
+        "cut_ga": args.cut_ga,
+        "cut_nc": args.cut_nc,
+        "cut_tc": args.cut_tc,
+        "evalue": args.evalue,
+        "bitscore": args.bitscore,
+        "domE": args.domE,
+        "domT": args.domT,
+        "incE": args.incE,
+        "incT": args.incT,
+        "incdomE": args.incdomE,
+        "incdomT": args.incdomT,
     }
+
 
     if hmm_in is None and installed_hmms is None:
         error_out = "Either a user-provided or pre-installed HMM database must be specified. You know better."

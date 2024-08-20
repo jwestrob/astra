@@ -66,6 +66,7 @@ def main():
     parser_search.add_argument("--cut_ga", action="store_true", default=False, help="Use built-in GA thresholds. Default: False")
     parser_search.add_argument("--cut_nc", action="store_true", default=False, help="Use built-in NC thresholds. Default: False")
     parser_search.add_argument("--cut_tc", action="store_true", default=False, help="Use built-in TC thresholds. Default: False")   
+    parser_search.add_argument("--cascade", action="store_true", default=False, help="Use whatever bitscore threshold is available; using simultaneously with e.g. --cut_ga will default to GA cutoffs where available, but take whatever other threshold is included if that is not an option.")
 
     parser_search.add_argument('--meta', action='store_true',default=False, help='Indicates input files are metagenomes; changes behavior to compensate for large input file size. See docs for details')
     parser_search.add_argument("--write_seqs", action="store_true", default=False, help="Obtain sequences for each HMM and write them to a folder within 'outdir'. Default: False")
