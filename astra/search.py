@@ -16,12 +16,16 @@ import asyncio
 import logging
 import time
 from memory_profiler import profile
+import tracemalloc
+
+tracemalloc.start()
 
 # Pyhmmer-specific issues:
 """
 - Pickle protocol not supported for sequences
 - Thresholds are altered by pickling when parsing HMMs in parallel with ProcessPoolExecutor
 """
+@profile
 def get_results_attributes(result):
     bitscore = result.bitscore
     evalue = result.evalue
@@ -141,6 +145,7 @@ def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None,
 
     return results_dataframes if not individual_results_dir and not options.get('meta', False) else None
 
+@profile
 def process_hits(hits, results):
     cog = hits.query_name.decode()
     for hit in hits:
@@ -240,6 +245,7 @@ def process_fasta(fasta_file):
         sequences = seq_file.read_block()
     return fasta_file, sequences
 
+@profile
 def parse_protein_input(prot_in, threads):
     print("Parsing protein input sequences...")
     protein_dict = {}  # Initialize an empty dictionary to store parsed proteins
@@ -400,6 +406,7 @@ def combine_results(individual_results_dir, output_file):
     combined_df.to_csv(output_file, sep='\t', index=False)
     print(f"Combined results written to {output_file}")
 
+@profile
 def main(args):
     t1 = time.time()
     # Required arguments
@@ -564,6 +571,11 @@ def main(args):
     time_printout  = "Process took {} seconds.".format(time.time()-t1)
     print(time_printout)
     logging.info(time_printout)
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    print("[ Top 10 ]")
+    for stat in top_stats[:10]:
+        print(stat)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ASTRA search tool")
