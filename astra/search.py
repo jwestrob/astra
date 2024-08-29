@@ -74,7 +74,7 @@ def has_thresholds(x):
     return flag
 
 # Modify the hmmsearch function
-def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
+def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None, db_name=None):
     results_dataframes = {}
     hmmsearch_kwargs = define_kwargs(options)
 
@@ -121,14 +121,18 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
                                  columns=["sequence_id", "hmm_name", "bitscore", "evalue", "c_evalue", 
                                           "i_evalue", "env_from", "env_to", "dom_bitscore"])
         
-        if not meta:
+        if individual_results_dir:
+            basename_fasta = os.path.basename(fasta_file)
+            output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
+            result_df.to_csv(os.path.join(individual_results_dir, output_filename), sep='\t', index=False)
+        elif not meta:
             results_dataframes[fasta_file] = result_df
         else:
             basename_fasta = os.path.basename(fasta_file)
             output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
             result_df.to_csv(os.path.join(outdir, output_filename), sep='\t', index=False)
 
-    return results_dataframes if not meta else None
+    return results_dataframes if not meta and not individual_results_dir else None
 
 def process_hits(hits, results):
     cog = hits.query_name.decode()
@@ -377,6 +381,18 @@ def define_kwargs(options):
     return kwargs
 
 
+def combine_results(individual_results_dir, output_file):
+    all_results = []
+    for filename in os.listdir(individual_results_dir):
+        if filename.endswith('_results.tsv'):
+            file_path = os.path.join(individual_results_dir, filename)
+            df = pd.read_csv(file_path, sep='\t')
+            all_results.append(df)
+    
+    combined_df = pd.concat(all_results, ignore_index=True)
+    combined_df.to_csv(output_file, sep='\t', index=False)
+    print(f"Combined results written to {output_file}")
+
 def main(args):
     t1 = time.time()
     # Required arguments
@@ -397,6 +413,13 @@ def main(args):
         os.makedirs(outdir)
         if args.write_seqs:
             os.makedirs(os.path.join(outdir, 'fastas'))  # Also create a 'fastas' folder within the output directory
+    
+    # Create individual_results directory if --individual_results is specified
+    if args.individual_results:
+        individual_results_dir = os.path.join(outdir, 'individual_results')
+        os.makedirs(individual_results_dir, exist_ok=True)
+    else:
+        individual_results_dir = None
 
     logging.basicConfig(filename=log_file_path, level=logging.INFO,
                         format='%(asctime)s %(levelname)s: %(message)s',
@@ -464,13 +487,16 @@ def main(args):
         #Check HMM input and parse
         user_hmms = parse_hmms(args.hmm_in)
         #Obtain dictionary containing results dataframes for each input FASTA
-        results_dataframes_dict = hmmsearch(protein_dict, user_hmms, threads, hmmsearch_options)
+        results_dataframes_dict = hmmsearch(protein_dict, user_hmms, threads, hmmsearch_options, individual_results_dir)
         
         if args.write_seqs:
             extract_sequences(results_dataframes_dict, outdir)
 
-        all_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
-        all_results_df.to_csv(os.path.join(outdir,'user_hmms_hits_df.tsv'), sep='\t', index=False)
+        if individual_results_dir:
+            combine_results(individual_results_dir, os.path.join(outdir, 'user_hmms_hits_df.tsv'))
+        else:
+            all_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
+            all_results_df.to_csv(os.path.join(outdir,'user_hmms_hits_df.tsv'), sep='\t', index=False)
         del user_hmms
         
     if installed_hmms is not None:
@@ -533,7 +559,11 @@ def main(args):
     logging.info(time_printout)
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="ASTRA search tool")
+    # Add existing arguments here
+    parser.add_argument('--individual_results', action='store_true', help='Enable memory-efficient mode with individual result files')
+    args = parser.parse_args()
+    main(args)
 
 
 #TODO:
