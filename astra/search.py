@@ -73,9 +73,7 @@ def has_thresholds(x):
 
     return flag
 
-# Modify the hmmsearch function
 def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None, db_name=None):
-    results_dataframes = {}
     hmmsearch_kwargs = define_kwargs(options)
 
     def get_best_cutoff(hmm):
@@ -96,7 +94,7 @@ def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None,
 
     for fasta_file, sequences in tqdm(protein_dict.items()):
         results = []
-        
+
         # Group HMMs by their best available cutoff
         hmm_groups = {}
         for hmm in hmms:
@@ -110,7 +108,7 @@ def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None,
                 kwargs['bit_cutoffs'] = cutoff
             elif 'bit_cutoffs' in kwargs:
                 del kwargs['bit_cutoffs']
-            
+
             if 'preferred_cutoff' in kwargs:
                 del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
 
@@ -120,19 +118,23 @@ def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None,
         result_df = pd.DataFrame(list(map(get_results_attributes, results)), 
                                  columns=["sequence_id", "hmm_name", "bitscore", "evalue", "c_evalue", 
                                           "i_evalue", "env_from", "env_to", "dom_bitscore"])
-        
+
         if individual_results_dir:
             basename_fasta = os.path.basename(fasta_file)
             output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
             result_df.to_csv(os.path.join(individual_results_dir, output_filename), sep='\t', index=False)
-        elif not meta:
-            results_dataframes[fasta_file] = result_df
+        elif not options['meta']:
+            return {fasta_file: result_df}
         else:
             basename_fasta = os.path.basename(fasta_file)
             output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
-            result_df.to_csv(os.path.join(outdir, output_filename), sep='\t', index=False)
+            result_df.to_csv(os.path.join(options['outdir'], output_filename), sep='\t', index=False)
 
-    return results_dataframes if not meta and not individual_results_dir else None
+        # Clear results to free up memory
+        results.clear()
+        del result_df
+
+    return None if individual_results_dir or options['meta'] else {}
 
 def process_hits(hits, results):
     cog = hits.query_name.decode()
@@ -561,7 +563,6 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ASTRA search tool")
     # Add existing arguments here
-    parser.add_argument('--individual_results', action='store_true', help='Enable memory-efficient mode with individual result files')
     args = parser.parse_args()
     main(args)
 
