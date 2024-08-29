@@ -418,12 +418,16 @@ def combine_results(tmp_dir, output_file):
         if filename.endswith('_results.tsv'):
             file_path = os.path.join(tmp_dir, filename)
             df = pd.read_csv(file_path, sep='\t')
+            print(f"Sample from {filename}:")
+            print(df.head().to_string())  # This will print the first few rows
             all_results.append(df)
 
     if all_results:
         combined_df = pd.concat(all_results, ignore_index=True)
         combined_df.to_csv(output_file, sep='\t', index=False)
         print(f"Combined results written to {output_file}")
+        print("Sample from combined results:")
+        print(combined_df.head().to_string())  # This will print the first few rows of the combined results
     else:
         print("No results found to combine.")
 
