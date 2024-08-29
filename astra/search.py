@@ -99,9 +99,15 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
                 return hmmsearch_kwargs['bit_cutoffs']
         return None
 
+    results_files = []
     for fasta_file, sequences in tqdm(protein_dict.items()):
         safe_filename = ''.join(c if c.isalnum() else '_' for c in os.path.basename(fasta_file))
         tmp_file = os.path.join(tmp_dir, f"{safe_filename}_{db_name or 'user'}_results.tsv")
+        results_files.append(tmp_file)
+
+        # Write header to the temporary file
+        with open(tmp_file, 'w') as f:
+            f.write("sequence_id\thmm_name\tbitscore\tevalue\tc_evalue\ti_evalue\tenv_from\tenv_to\tdom_bitscore\n")
 
         # Group HMMs by their best available cutoff
         hmm_groups = {}
@@ -123,7 +129,33 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
             for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
                 process_hits(hits, tmp_dir, safe_filename)
 
-    return tmp_dir
+    if options['meta']:
+        return tmp_dir
+    else:
+        results_dataframes = {}
+        for file in results_files:
+            df = pd.read_csv(file, sep='\t')
+            results_dataframes[os.path.basename(file).split('_')[0]] = df
+        return results_dataframes
+
+def process_hits(hits, temp_dir, sequence_name):
+    cog = hits.query_name.decode()
+    tmp_file = os.path.join(temp_dir, f"{sequence_name}_results.tsv")
+    for hit in hits:
+        if hit.included:
+            hit_name = hit.name.decode()
+            full_bitscore = hit.score 
+            full_evalue = hit.evalue
+            for domain in hit.domains.reported:
+                result = Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
+                                domain.i_evalue, domain.env_from, domain.env_to, domain.score)
+                write_temp_result(result, tmp_file)
+
+def write_temp_result(result, tmp_file):
+    with open(tmp_file, 'a') as f:
+        f.write(f"{result.sequence_id}\t{result.hmm_name}\t{result.bitscore}\t{result.evalue}\t"
+                f"{result.c_evalue}\t{result.i_evalue}\t{result.env_from}\t{result.env_to}\t"
+                f"{result.dom_bitscore}\n")
 
 def extract_sequences_from_tmp(tmp_dir, protein_dict, outdir):
     fastas_dir = os.path.join(outdir, 'fastas')
@@ -149,17 +181,6 @@ def cleanup_temp_files(temp_dir):
     print(f"Temporary files removed from {temp_dir}")
 
 
-def process_hits(hits, temp_dir, sequence_name):
-    cog = hits.query_name.decode()
-    for hit in hits:
-        if hit.included:
-            hit_name = hit.name.decode()
-            full_bitscore = hit.score 
-            full_evalue = hit.evalue
-            for domain in hit.domains.reported:
-                result = Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
-                                domain.i_evalue, domain.env_from, domain.env_to, domain.score)
-                write_temp_result(result, temp_dir, sequence_name)
 
 def parse_single_hmm(hmm_path):
     #Single-file parser for parallelization
@@ -403,15 +424,6 @@ def create_temp_directory(outdir):
     temp_dir = os.path.join(outdir, 'tmp')
     os.makedirs(temp_dir, exist_ok=True)
     return temp_dir
-
-def write_temp_result(result, temp_dir, sequence_name):
-    sanitized_name = sanitize_filename(sequence_name)
-    seq_dir = os.path.join(temp_dir, sanitized_name)
-    os.makedirs(seq_dir, exist_ok=True)
-    
-    df = pd.DataFrame([result._asdict()])
-    temp_file = os.path.join(seq_dir, f"{sanitized_name}_result.tsv")
-    df.to_csv(temp_file, sep='\t', index=False, mode='a')
 
 def combine_results(individual_results_dir, output_file):
     all_results = []
