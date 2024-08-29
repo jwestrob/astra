@@ -102,6 +102,11 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
     for fasta_file, sequences in tqdm(protein_dict.items()):
         safe_filename = ''.join(c if c.isalnum() else '_' for c in os.path.basename(fasta_file))
         tmp_file = os.path.join(tmp_dir, f"{safe_filename}_{db_name or 'user'}_results.tsv")
+        results_files.append(tmp_file)
+
+        # Write header to the temporary file
+        with open(tmp_file, 'w') as f:
+            f.write("sequence_id\thmm_name\tbitscore\tevalue\tc_evalue\ti_evalue\tenv_from\tenv_to\tdom_bitscore\n")
 
         # Group HMMs by their best available cutoff
         hmm_groups = {}
@@ -140,9 +145,9 @@ def process_hits(hits, temp_dir, sequence_name):
 
 def write_temp_result(result, tmp_file):
     with open(tmp_file, 'a') as f:
-        f.write(f"{result.sequence_id}\t{result.hmm_name}\t{result.bitscore}\t{result.evalue}\t"
-                f"{result.c_evalue}\t{result.i_evalue}\t{result.env_from}\t{result.env_to}\t"
-                f"{result.dom_bitscore}\n")
+        f.write(f"{result.sequence_id}\t{result.hmm_name}\t{result.bitscore:.2f}\t{result.evalue:.2e}\t"
+                f"{result.c_evalue:.2e}\t{result.i_evalue:.2e}\t{result.env_from}\t{result.env_to}\t"
+                f"{result.dom_bitscore:.2f}\n")
 
 def extract_sequences_from_tmp(tmp_dir, protein_dict, outdir):
     fastas_dir = os.path.join(outdir, 'fastas')
@@ -412,17 +417,20 @@ def create_temp_directory(outdir):
     os.makedirs(temp_dir, exist_ok=True)
     return temp_dir
 
-def combine_results(individual_results_dir, output_file):
+def combine_results(tmp_dir, output_file):
     all_results = []
-    for filename in os.listdir(individual_results_dir):
+    for filename in os.listdir(tmp_dir):
         if filename.endswith('_results.tsv'):
-            file_path = os.path.join(individual_results_dir, filename)
+            file_path = os.path.join(tmp_dir, filename)
             df = pd.read_csv(file_path, sep='\t')
             all_results.append(df)
-    
-    combined_df = pd.concat(all_results, ignore_index=True)
-    combined_df.to_csv(output_file, sep='\t', index=False)
-    print(f"Combined results written to {output_file}")
+
+    if all_results:
+        combined_df = pd.concat(all_results, ignore_index=True)
+        combined_df.to_csv(output_file, sep='\t', index=False)
+        print(f"Combined results written to {output_file}")
+    else:
+        print("No results found to combine.")
 
 def main(args):
     t1 = time.time()
