@@ -79,7 +79,7 @@ def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None,
     def get_best_cutoff(hmm):
         if options['cascade']:
             cutoff_order = [
-                hmmsearch_kwargs['preferred_cutoff'],
+                hmmsearch_kwargs.get('preferred_cutoff', 'trusted'),
                 'trusted',
                 'gathering',
                 'noise'
@@ -92,59 +92,52 @@ def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None,
                 return hmmsearch_kwargs['bit_cutoffs']
         return None
 
+    results_dataframes = {}
+
     for fasta_file, sequences in tqdm(protein_dict.items()):
-        basename_fasta = os.path.basename(fasta_file)
-        output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
-        output_path = os.path.join(individual_results_dir or options['outdir'], output_filename)
+        results = []
 
-        # Open the output file once and append results as we go
-        with open(output_path, 'w') as out_file:
-            # Write header
-            out_file.write("sequence_id\thmm_name\tbitscore\tevalue\tc_evalue\ti_evalue\tenv_from\tenv_to\tdom_bitscore\n")
+        # Group HMMs by their best available cutoff
+        hmm_groups = {}
+        for hmm in hmms:
+            best_cutoff = get_best_cutoff(hmm)
+            hmm_groups.setdefault(best_cutoff, []).append(hmm)
 
-            # Group HMMs by their best available cutoff
-            hmm_groups = {}
-            for hmm in hmms:
-                best_cutoff = get_best_cutoff(hmm)
-                hmm_groups.setdefault(best_cutoff, []).append(hmm)
+        # Perform searches for each group
+        for cutoff, hmm_group in hmm_groups.items():
+            kwargs = hmmsearch_kwargs.copy()
+            if cutoff:
+                kwargs['bit_cutoffs'] = cutoff
+            elif 'bit_cutoffs' in kwargs:
+                del kwargs['bit_cutoffs']
 
-            # Perform searches for each group
-            for cutoff, hmm_group in hmm_groups.items():
-                kwargs = hmmsearch_kwargs.copy()
-                if cutoff:
-                    kwargs['bit_cutoffs'] = cutoff
-                elif 'bit_cutoffs' in kwargs:
-                    del kwargs['bit_cutoffs']
+            if 'preferred_cutoff' in kwargs:
+                del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
 
-                if 'preferred_cutoff' in kwargs:
-                    del kwargs['preferred_cutoff']
+            for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
+                process_hits(hits, results)
 
-                # Use PyHMMER's pipeline for more efficient processing
-                pipeline = pyhmmer.plan7.Pipeline(sequences.alphabet, bgfile=None, **kwargs)
+        result_df = pd.DataFrame(
+            list(map(get_results_attributes, results)), 
+            columns=["sequence_id", "hmm_name", "bitscore", "evalue", "c_evalue", 
+                     "i_evalue", "env_from", "env_to", "dom_bitscore"]
+        )
 
-                for hmm in hmm_group:
-                    hits = pipeline.search_hmm(hmm, sequences)
-                    for hit in hits:
-                        if hit.included:
-                            hit_name = hit.name.decode()
-                            cog = hmm.name.decode()
-                            full_bitscore = hit.score 
-                            full_evalue = hit.evalue
-                            for domain in hit.domains.reported:
-                                result = [hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
-                                          domain.i_evalue, domain.env_from, domain.env_to, domain.score]
-                                out_file.write('\t'.join(map(str, result)) + '\n')
+        if individual_results_dir:
+            basename_fasta = os.path.basename(fasta_file)
+            output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
+            result_df.to_csv(os.path.join(individual_results_dir, output_filename), sep='\t', index=False)
+        elif options.get('meta', False):
+            basename_fasta = os.path.basename(fasta_file)
+            output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
+            result_df.to_csv(os.path.join(options['outdir'], output_filename), sep='\t', index=False)
+        else:
+            results_dataframes[fasta_file] = result_df
 
-                    # Clear any cached data in the pipeline
-                    pipeline.clear()
+        # Clear results to free up memory
+        results.clear()
 
-                # Force garbage collection after each HMM group
-                gc.collect()
-
-            # Clear sequences object
-            sequences.clear()
-
-    return None
+    return results_dataframes if not individual_results_dir and not options.get('meta', False) else None
 
 def process_hits(hits, results):
     cog = hits.query_name.decode()
