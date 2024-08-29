@@ -73,6 +73,13 @@ def has_thresholds(x):
 
     return flag
 
+def write_temp_result(result, temp_dir, sequence_name):
+    tmp_file = os.path.join(temp_dir, f"{sequence_name}_results.tsv")
+    with open(tmp_file, 'a') as f:
+        f.write(f"{result.sequence_id}\t{result.hmm_name}\t{result.bitscore}\t{result.evalue}\t"
+                f"{result.c_evalue}\t{result.i_evalue}\t{result.env_from}\t{result.env_to}\t"
+                f"{result.dom_bitscore}\n")
+
 def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
     hmmsearch_kwargs = define_kwargs(options)
     tmp_dir = os.path.join(options['outdir'], 'tmp_results')
@@ -102,25 +109,22 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
             best_cutoff = get_best_cutoff(hmm)
             hmm_groups.setdefault(best_cutoff, []).append(hmm)
 
-        with open(tmp_file, 'w') as f:
-            f.write("sequence_id\thmm_name\tbitscore\tevalue\tc_evalue\ti_evalue\tenv_from\tenv_to\tdom_bitscore\n")
+        # Perform searches for each group
+        for cutoff, hmm_group in hmm_groups.items():
+            kwargs = hmmsearch_kwargs.copy()
+            if cutoff:
+                kwargs['bit_cutoffs'] = cutoff
+            elif 'bit_cutoffs' in kwargs:
+                del kwargs['bit_cutoffs']
 
-            # Perform searches for each group
-            for cutoff, hmm_group in hmm_groups.items():
-                kwargs = hmmsearch_kwargs.copy()
-                if cutoff:
-                    kwargs['bit_cutoffs'] = cutoff
-                elif 'bit_cutoffs' in kwargs:
-                    del kwargs['bit_cutoffs']
+            if 'preferred_cutoff' in kwargs:
+                del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
 
-                if 'preferred_cutoff' in kwargs:
-                    del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
-
-                for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
-                    process_hits(hits, f)
+            for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
+                process_hits(hits, tmp_dir, safe_filename)
 
     return tmp_dir
-    
+
 def extract_sequences_from_tmp(tmp_dir, protein_dict, outdir):
     fastas_dir = os.path.join(outdir, 'fastas')
     os.makedirs(fastas_dir, exist_ok=True)
