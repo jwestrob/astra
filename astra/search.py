@@ -164,7 +164,7 @@ def extract_sequences_from_tmp(tmp_dir, protein_dict, outdir):
                                 out_f.write(f">{seq.name.decode()}\n{seq.sequence}\n")
 
 def cleanup_temp_files(temp_dir):
-    shutil.rmtree(temp_dir)
+    #shutil.rmtree(temp_dir)
     print(f"Temporary files removed from {temp_dir}")
 
 
