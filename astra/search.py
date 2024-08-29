@@ -15,17 +15,12 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_compl
 import asyncio
 import logging
 import time
-from memory_profiler import profile
-import tracemalloc
-
-tracemalloc.start()
 
 # Pyhmmer-specific issues:
 """
 - Pickle protocol not supported for sequences
 - Thresholds are altered by pickling when parsing HMMs in parallel with ProcessPoolExecutor
 """
-@profile
 def get_results_attributes(result):
     bitscore = result.bitscore
     evalue = result.evalue
@@ -78,17 +73,16 @@ def has_thresholds(x):
 
     return flag
 
-@profile
-def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None, db_name=None):
+def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
     hmmsearch_kwargs = define_kwargs(options)
+    tmp_dir = os.path.join(options['outdir'], 'tmp_results')
+    os.makedirs(tmp_dir, exist_ok=True)
 
     def get_best_cutoff(hmm):
         if options['cascade']:
             cutoff_order = [
                 hmmsearch_kwargs.get('preferred_cutoff', 'trusted'),
-                'trusted',
-                'gathering',
-                'noise'
+                'trusted', 'gathering', 'noise'
             ]
             for cutoff in cutoff_order:
                 if getattr(hmm.cutoffs, f"{cutoff}_available")():
@@ -98,10 +92,9 @@ def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None,
                 return hmmsearch_kwargs['bit_cutoffs']
         return None
 
-    results_dataframes = {}
-
     for fasta_file, sequences in tqdm(protein_dict.items()):
-        results = []
+        safe_filename = ''.join(c if c.isalnum() else '_' for c in os.path.basename(fasta_file))
+        tmp_file = os.path.join(tmp_dir, f"{safe_filename}_{db_name or 'user'}_results.tsv")
 
         # Group HMMs by their best available cutoff
         hmm_groups = {}
@@ -109,44 +102,50 @@ def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None,
             best_cutoff = get_best_cutoff(hmm)
             hmm_groups.setdefault(best_cutoff, []).append(hmm)
 
-        # Perform searches for each group
-        for cutoff, hmm_group in hmm_groups.items():
-            kwargs = hmmsearch_kwargs.copy()
-            if cutoff:
-                kwargs['bit_cutoffs'] = cutoff
-            elif 'bit_cutoffs' in kwargs:
-                del kwargs['bit_cutoffs']
+        with open(tmp_file, 'w') as f:
+            f.write("sequence_id\thmm_name\tbitscore\tevalue\tc_evalue\ti_evalue\tenv_from\tenv_to\tdom_bitscore\n")
 
-            if 'preferred_cutoff' in kwargs:
-                del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
+            # Perform searches for each group
+            for cutoff, hmm_group in hmm_groups.items():
+                kwargs = hmmsearch_kwargs.copy()
+                if cutoff:
+                    kwargs['bit_cutoffs'] = cutoff
+                elif 'bit_cutoffs' in kwargs:
+                    del kwargs['bit_cutoffs']
 
-            for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
-                process_hits(hits, results)
+                if 'preferred_cutoff' in kwargs:
+                    del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
 
-        result_df = pd.DataFrame(
-            list(map(get_results_attributes, results)), 
-            columns=["sequence_id", "hmm_name", "bitscore", "evalue", "c_evalue", 
-                     "i_evalue", "env_from", "env_to", "dom_bitscore"]
-        )
+                for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
+                    process_hits(hits, f)
 
-        if individual_results_dir:
-            basename_fasta = os.path.basename(fasta_file)
-            output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
-            result_df.to_csv(os.path.join(individual_results_dir, output_filename), sep='\t', index=False)
-        elif options.get('meta', False):
-            basename_fasta = os.path.basename(fasta_file)
-            output_filename = f"{basename_fasta}_{db_name}_results.tsv" if db_name else f"{basename_fasta}_results.tsv"
-            result_df.to_csv(os.path.join(options['outdir'], output_filename), sep='\t', index=False)
-        else:
-            results_dataframes[fasta_file] = result_df
+    return tmp_dir
+    
+def extract_sequences_from_tmp(tmp_dir, protein_dict, outdir):
+    fastas_dir = os.path.join(outdir, 'fastas')
+    os.makedirs(fastas_dir, exist_ok=True)
 
-        # Clear results to free up memory
-        results.clear()
+    for filename in os.listdir(tmp_dir):
+        if filename.endswith('_results.tsv'):
+            file_path = os.path.join(tmp_dir, filename)
+            df = pd.read_csv(file_path, sep='\t')
+            
+            for hmm_name in df['hmm_name'].unique():
+                ids_to_extract = df[df['hmm_name'] == hmm_name]['sequence_id'].tolist()
+                hits_fasta = os.path.join(fastas_dir, f"{hmm_name}.faa")
 
-    return results_dataframes if not individual_results_dir and not options.get('meta', False) else None
+                with open(hits_fasta, 'w') as out_f:
+                    for fasta_file, sequences in protein_dict.items():
+                        for seq in sequences:
+                            if seq.name.decode() in ids_to_extract:
+                                out_f.write(f">{seq.name.decode()}\n{seq.sequence}\n")
 
-@profile
-def process_hits(hits, results):
+def cleanup_temp_files(temp_dir):
+    shutil.rmtree(temp_dir)
+    print(f"Temporary files removed from {temp_dir}")
+
+
+def process_hits(hits, temp_dir, sequence_name):
     cog = hits.query_name.decode()
     for hit in hits:
         if hit.included:
@@ -154,8 +153,9 @@ def process_hits(hits, results):
             full_bitscore = hit.score 
             full_evalue = hit.evalue
             for domain in hit.domains.reported:
-                results.append(Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
-                              domain.i_evalue, domain.env_from, domain.env_to, domain.score))
+                result = Result(hit_name, cog, full_bitscore, full_evalue, domain.c_evalue, 
+                                domain.i_evalue, domain.env_from, domain.env_to, domain.score)
+                write_temp_result(result, temp_dir, sequence_name)
 
 def parse_single_hmm(hmm_path):
     #Single-file parser for parallelization
@@ -245,7 +245,6 @@ def process_fasta(fasta_file):
         sequences = seq_file.read_block()
     return fasta_file, sequences
 
-@profile
 def parse_protein_input(prot_in, threads):
     print("Parsing protein input sequences...")
     protein_dict = {}  # Initialize an empty dictionary to store parsed proteins
@@ -393,6 +392,22 @@ def define_kwargs(options):
 
     return kwargs
 
+def sanitize_filename(filename):
+    return ''.join(c for c in filename if c.isalnum() or c in '._- ')
+
+def create_temp_directory(outdir):
+    temp_dir = os.path.join(outdir, 'tmp')
+    os.makedirs(temp_dir, exist_ok=True)
+    return temp_dir
+
+def write_temp_result(result, temp_dir, sequence_name):
+    sanitized_name = sanitize_filename(sequence_name)
+    seq_dir = os.path.join(temp_dir, sanitized_name)
+    os.makedirs(seq_dir, exist_ok=True)
+    
+    df = pd.DataFrame([result._asdict()])
+    temp_file = os.path.join(seq_dir, f"{sanitized_name}_result.tsv")
+    df.to_csv(temp_file, sep='\t', index=False, mode='a')
 
 def combine_results(individual_results_dir, output_file):
     all_results = []
@@ -406,56 +421,22 @@ def combine_results(individual_results_dir, output_file):
     combined_df.to_csv(output_file, sep='\t', index=False)
     print(f"Combined results written to {output_file}")
 
-@profile
 def main(args):
     t1 = time.time()
-    # Required arguments
     hmm_in = args.hmm_in
     prot_in = args.prot_in 
-
-    #boolean; indicates input is metagenomic files
-    global meta
-    meta = args.meta
-
-    #Set this as global; we don't want to have to pass it
-    global outdir 
     outdir = args.outdir
     log_file_path = os.path.join(outdir, 'astra_search_log.txt')
 
-    # Check if the output directory already exists
     if not os.path.exists(outdir):
         os.makedirs(outdir)
         if args.write_seqs:
-            os.makedirs(os.path.join(outdir, 'fastas'))  # Also create a 'fastas' folder within the output directory
-    
-    # Create individual_results directory if --individual_results is specified
-    if args.individual_results:
-        individual_results_dir = os.path.join(outdir, 'individual_results')
-        os.makedirs(individual_results_dir, exist_ok=True)
-    else:
-        individual_results_dir = None
+            os.makedirs(os.path.join(outdir, 'fastas'))
 
     logging.basicConfig(filename=log_file_path, level=logging.INFO,
                         format='%(asctime)s %(levelname)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
-    installed_hmms = args.installed_hmms
 
-    # Optional arguments
-    evalue = args.evalue
-    bitscore = args.bitscore
-
-    # Boolean flags
-    cut_ga = args.cut_ga
-    cut_nc = args.cut_nc
-    cut_tc = args.cut_tc
-
-    write_seqs = args.write_seqs
-
-    #again i am too lazy to pass this parameter in a function call SUE ME
-    global threads
-    threads = args.threads
-
-    #initialize default options
     hmmsearch_options = {
         "cascade": args.cascade,
         "cut_ga": args.cut_ga,
@@ -469,113 +450,57 @@ def main(args):
         "incT": args.incT,
         "incdomE": args.incdomE,
         "incdomT": args.incdomT,
+        "outdir": outdir,
+        "meta": args.meta
     }
 
-
-    if hmm_in is None and installed_hmms is None:
-        error_out = "Either a user-provided or pre-installed HMM database must be specified. You know better."
+    if hmm_in is None and args.installed_hmms is None:
+        error_out = "Either a user-provided or pre-installed HMM database must be specified."
         print(error_out)
         logging.error(error_out)
         sys.exit(1)
 
-    # Check if more than one of --evalue, --bitscore, --cut_nc, --cut_tc, and --cut_ga are specified
-    specified_flags = [args.cut_nc, args.cut_tc, args.cut_ga]
-    if sum(specified_flags) > 1:
-        print("Error: You can only specify one of --bitscore, --cut_nc, --cut_tc, and --cut_ga.")
-        logging.info("Error: You can only specify one of --bitscore, --cut_nc, --cut_tc, and --cut_ga.")
-        print("If you specify a bitscore threshold and a pre-defined cutoff (e.g. --cut_ga) the pre-defined cutoff will be used")
-        logging.info("If you specify a bitscore threshold and a pre-defined cutoff (e.g. --cut_ga) the pre-defined cutoff will be used")
-        print("where available, otherwise the specified bitscore threshold will be used.")
-        logging.info("where available, otherwise the specified bitscore threshold will be used.")
+    protein_dict = parse_protein_input(prot_in, args.threads)
 
-
-
-
-
-    #Check protein input and parse
-    protein_dict = parse_protein_input(prot_in, threads)
-    
     if hmm_in is not None:
         print("Searching with user-provided HMM(s)...")
         logging.info("Searching with user-provided HMM(s)...")
-        #Check HMM input and parse
         user_hmms = parse_hmms(args.hmm_in)
-        #Obtain dictionary containing results dataframes for each input FASTA
-        results_dataframes_dict = hmmsearch(protein_dict, user_hmms, threads, hmmsearch_options, individual_results_dir)
-        
+        tmp_dir = hmmsearch(protein_dict, user_hmms, args.threads, hmmsearch_options)
+        combine_results(tmp_dir, os.path.join(outdir, 'user_hmms_hits_df.tsv'))
         if args.write_seqs:
-            extract_sequences(results_dataframes_dict, outdir)
-
-        if individual_results_dir:
-            combine_results(individual_results_dir, os.path.join(outdir, 'user_hmms_hits_df.tsv'))
-        else:
-            all_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
-            all_results_df.to_csv(os.path.join(outdir,'user_hmms_hits_df.tsv'), sep='\t', index=False)
+            extract_sequences_from_tmp(tmp_dir, protein_dict, outdir)
         del user_hmms
-        
-    if installed_hmms is not None:
-        #check HMM input and parse
 
-        # Step 1: Get paths for installed HMM databases
-        installed_hmm_paths = []
-        if ',' in installed_hmms:
-            installed_hmm_names = installed_hmms.split(',')
-        else:
-            installed_hmm_names = [installed_hmms]  # Single element list
+    if args.installed_hmms is not None:
+        installed_hmm_names = args.installed_hmms.split(',') if ',' in args.installed_hmms else [args.installed_hmms]
+        print(f"Searching with pre-installed HMMs: {', '.join(installed_hmm_names)}")
+        logging.info(f"Searching with pre-installed HMMs: {', '.join(installed_hmm_names)}")
 
-        #Two conditions in case there isn't a , in the installed_hmm_names
-        if ',' in installed_hmm_names:
-            print("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
-            logging.info("Searching with pre-installed HMMs: ", ', '.join(installed_hmm_names))
-        else:
-            print("Searching with pre-installed HMMs: {}".format(installed_hmm_names[0]))
-            logging.info("Searching with pre-installed HMMs: {}".format(installed_hmm_names[0]))
-
-        #Load JSON with database and procedural information
         parsed_json = initialize.load_config()
 
         if 'all_prot' in installed_hmm_names:
-
-            # Replace 'all_prot' with all installed protein HMM database names
-            installed_hmm_names = []
-            installed_hmm_paths = []
-            for db in parsed_json['db_urls']:
-                if db['molecule_type'] == 'protein' and db['installed']:
-                    installed_hmm_names.append(db['name'])
+            installed_hmm_names = [db['name'] for db in parsed_json['db_urls'] if db['molecule_type'] == 'protein' and db['installed']]
 
         for hmm_db in installed_hmm_names:
-
             installed_hmm_in = next((item for item in parsed_json['db_urls'] if item["name"] == hmm_db), None)
             if installed_hmm_in is not None:
                 installation_dir = installed_hmm_in['installation_dir']
                 db_hmms = parse_hmms(installation_dir)
+                tmp_dir = hmmsearch(protein_dict, db_hmms, args.threads, hmmsearch_options, hmm_db)
+                combine_results(tmp_dir, os.path.join(outdir, f'{hmm_db}_hits_df.tsv'))
+                if args.write_seqs:
+                    extract_sequences_from_tmp(tmp_dir, protein_dict, outdir)
             else:
-                #No installation_dir specified; print this and move on
-                print("No installation_dir specified for db " + hmm_db)
-                logging.info("No installation_dir specified for db " + hmm_db)
-                continue
-            #if we're in meta mode, we don't want to keep all that shit in memory
-            #and the hmmsearch function will write a file for each DB and each protein file
-            #because they're huge
-            if not meta:
-                results_dataframes_dict = hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options, hmm_db)
-            else:
-                hmmsearch(protein_dict, db_hmms, threads, hmmsearch_options, hmm_db)
+                print(f"No installation_dir specified for db {hmm_db}")
+                logging.info(f"No installation_dir specified for db {hmm_db}")
 
-            if args.write_seqs:
-                extract_sequences(results_dataframes_dict, outdir)
+    # Clean up temporary directory
+    shutil.rmtree(os.path.join(outdir, 'tmp_results'))
 
-            if not meta:
-                db_results_df = pd.concat([results_dataframes_dict[key] for key in results_dataframes_dict.keys()])
-                db_results_df.to_csv(os.path.join(outdir,hmm_db + '_hits_df.tsv'), sep='\t', index=False)
-    time_printout  = "Process took {} seconds.".format(time.time()-t1)
+    time_printout = f"Process took {time.time()-t1} seconds."
     print(time_printout)
     logging.info(time_printout)
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
-    print("[ Top 10 ]")
-    for stat in top_stats[:10]:
-        print(stat)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ASTRA search tool")
