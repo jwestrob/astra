@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_compl
 import asyncio
 import logging
 import time
+from memory_profiler import profile
 
 # Pyhmmer-specific issues:
 """
@@ -73,6 +74,7 @@ def has_thresholds(x):
 
     return flag
 
+@profile
 def hmmsearch(protein_dict, hmms, threads, options, individual_results_dir=None, db_name=None):
     hmmsearch_kwargs = define_kwargs(options)
 
