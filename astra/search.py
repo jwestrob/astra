@@ -101,7 +101,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
 
     for fasta_file, sequences in tqdm(protein_dict.items()):
         safe_filename = ''.join(c if c.isalnum() else '_' for c in os.path.basename(fasta_file))
-        tmp_file = os.path.join(tmp_dir, f"{safe_filename}_{db_name or 'user'}_results.tsv")
+        tmp_file = os.path.join(tmp_dir, f"{safe_filename}_results.tsv")
 
         # Write header to the temporary file
         with open(tmp_file, 'w') as f:
@@ -125,14 +125,13 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
                 del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
 
             for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
-                process_hits(hits, tmp_dir, safe_filename)
+                process_hits(hits, tmp_file)
 
     return tmp_dir
 
 
-def process_hits(hits, temp_dir, sequence_name):
+def process_hits(hits, tmp_file):
     cog = hits.query_name.decode()
-    tmp_file = os.path.join(temp_dir, f"{sequence_name}_results.tsv")
     with open(tmp_file, 'a') as f:
         for hit in hits:
             if hit.included:
@@ -140,8 +139,8 @@ def process_hits(hits, temp_dir, sequence_name):
                 full_bitscore = hit.score 
                 full_evalue = hit.evalue
                 for domain in hit.domains.reported:
-                    f.write(f"{hit_name}\t{cog}\t{full_bitscore}\t{full_evalue}\t{domain.c_evalue}\t"
-                            f"{domain.i_evalue}\t{domain.env_from}\t{domain.env_to}\t{domain.score}\n")
+                    f.write(f"{hit_name}\t{cog}\t{full_bitscore:.2f}\t{full_evalue:.2e}\t{domain.c_evalue:.2e}\t"
+                            f"{domain.i_evalue:.2e}\t{domain.env_from}\t{domain.env_to}\t{domain.score:.2f}\n")
 
 
 def extract_sequences_from_tmp(tmp_dir, protein_dict, outdir):
