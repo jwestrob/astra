@@ -99,15 +99,9 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
                 return hmmsearch_kwargs['bit_cutoffs']
         return None
 
-    results_files = []
     for fasta_file, sequences in tqdm(protein_dict.items()):
         safe_filename = ''.join(c if c.isalnum() else '_' for c in os.path.basename(fasta_file))
         tmp_file = os.path.join(tmp_dir, f"{safe_filename}_{db_name or 'user'}_results.tsv")
-        results_files.append(tmp_file)
-
-        # Write header to the temporary file
-        with open(tmp_file, 'w') as f:
-            f.write("sequence_id\thmm_name\tbitscore\tevalue\tc_evalue\ti_evalue\tenv_from\tenv_to\tdom_bitscore\n")
 
         # Group HMMs by their best available cutoff
         hmm_groups = {}
@@ -129,14 +123,7 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
             for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
                 process_hits(hits, tmp_dir, safe_filename)
 
-    if options['meta']:
-        return tmp_dir
-    else:
-        results_dataframes = {}
-        for file in results_files:
-            df = pd.read_csv(file, sep='\t')
-            results_dataframes[os.path.basename(file).split('_')[0]] = df
-        return results_dataframes
+    return tmp_dir
 
 def process_hits(hits, temp_dir, sequence_name):
     cog = hits.query_name.decode()
@@ -512,7 +499,7 @@ def main(args):
                 logging.info(f"No installation_dir specified for db {hmm_db}")
 
     # Clean up temporary directory
-    shutil.rmtree(os.path.join(outdir, 'tmp_results'))
+    cleanup_temp_files(os.path.join(outdir, 'tmp_results'))
 
     time_printout = f"Process took {time.time()-t1} seconds."
     print(time_printout)
