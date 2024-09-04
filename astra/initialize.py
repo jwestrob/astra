@@ -68,8 +68,11 @@ def load_config():
         print("hmm_databases.json not found!! Please raise an issue on github.")
         sys.exit()
 
-    # If 'db_path' is empty, prompt the user for the directory to store HMM databases
-    if not hmm_databases.get('db_path'):
+    # Expand the $HOME variable in the db_path
+    if hmm_databases.get('db_path'):
+        hmm_databases['db_path'] = os.path.expandvars(hmm_databases['db_path'])
+    else:
+        # If 'db_path' is empty, prompt the user for the directory to store HMM databases
         # Use platformdirs to get the standard configuration directory
         default_db_path = user_config_dir(app_name, app_author)
         print(f"The default directory for HMM databases is: {default_db_path}")
@@ -272,10 +275,12 @@ def install_databases(db_name, parsed_json=None, db_path=None):
     # Want to model that function call as 'initialize.install_databases(db_name)'
     # So must leave out parsed_json/db_path
     if parsed_json is None:
-        parsed_json = load_json()
+        parsed_json = load_config()
     if db_path is None:
-        config = load_config()
-        db_path = config['db_path']
+        db_path = parsed_json['db_path']
+    
+    # Ensure db_path is expanded
+    db_path = os.path.expandvars(db_path)
 
     # Flag to check if we need to update the JSON file
     update_required = False
