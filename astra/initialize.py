@@ -33,7 +33,6 @@ def initialize_config():
 
     # Path to the hmm_databases.json file in the repository/package directory
     repo_db_json_path = os.path.join(package_dir, 'hmm_databases.json')
-
     # Check if hmm_databases.json exists in the repository/package directory
     if os.path.exists(repo_db_json_path):
         # If it exists in the package directory, load it directly
