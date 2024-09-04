@@ -43,8 +43,16 @@ def initialize_config():
             copyfile(repo_db_json_path, default_db_json_path)
             print(f"'hmm_databases.json' copied to {default_db_json_path}")
         else:
-            print("hmm_databases.json not found in the package directory. Please ensure it's included in the repository.")
-            sys.exit()
+            # If not found in package directory, check the current working directory
+            cwd_db_json_path = os.path.join(os.getcwd(), 'hmm_databases.json')
+            if os.path.exists(cwd_db_json_path):
+                # Copy hmm_databases.json from the current working directory to the user's config directory
+                os.makedirs(os.path.dirname(default_db_json_path), exist_ok=True)  # Ensure the directory exists
+                copyfile(cwd_db_json_path, default_db_json_path)
+                print(f"'hmm_databases.json' copied from current directory to {default_db_json_path}")
+            else:
+                print("hmm_databases.json not found in the package directory or current working directory. Please ensure it's included in the repository or current directory.")
+                sys.exit()
 
     # Load the hmm_databases.json now that it's ensured to exist
     with open(default_db_json_path, 'r') as f:
