@@ -2,6 +2,8 @@ import collections
 import os
 import sys
 import time
+import logging
+import argparse
 
 import pandas as pd
 import pyhmmer
