@@ -8,6 +8,7 @@ import pandas as pd
 from tqdm import tqdm
 import pyhmmer
 import collections
+import subprocess
 from typing import Dict, List, Union, Tuple
 import shutil
 from astra import initialize
