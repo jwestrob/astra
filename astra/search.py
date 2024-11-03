@@ -2,7 +2,9 @@
 import os
 import sys
 import argparse
-import pandas as pd, numpy as np
+import pandas as pd
+import numpy as np
+from typing import Dict, List, Union
 import pyhmmer
 import subprocess
 import collections
@@ -80,10 +82,17 @@ def write_temp_result(result, temp_dir, sequence_name):
                 f"{result.c_evalue}\t{result.i_evalue}\t{result.env_from}\t{result.env_to}\t"
                 f"{result.dom_bitscore}\n")
 
+# Maximum number of input files before switching to temp file storage
+MAX_IN_MEMORY_FILES = 100
+
 def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
     hmmsearch_kwargs = define_kwargs(options)
-    tmp_dir = os.path.join(options['outdir'], 'tmp_results')
-    os.makedirs(tmp_dir, exist_ok=True)
+    use_memory = len(protein_dict) <= MAX_IN_MEMORY_FILES
+    results_data = [] if use_memory else None
+    
+    if not use_memory:
+        tmp_dir = os.path.join(options['outdir'], 'tmp_results')
+        os.makedirs(tmp_dir, exist_ok=True)
 
     def get_best_cutoff(hmm):
         if options['cascade']:
@@ -100,12 +109,13 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
         return None
 
     for fasta_file, sequences in tqdm(protein_dict.items()):
-        safe_filename = ''.join(c if c.isalnum() else '_' for c in os.path.basename(fasta_file))
-        tmp_file = os.path.join(tmp_dir, f"{safe_filename}_results.tsv")
+        if not use_memory:
+            safe_filename = ''.join(c if c.isalnum() else '_' for c in os.path.basename(fasta_file))
+            tmp_file = os.path.join(tmp_dir, f"{safe_filename}_results.tsv")
 
-        # Write header to the temporary file
-        with open(tmp_file, 'w') as f:
-            f.write("sequence_id\thmm_name\tbitscore\tevalue\tc_evalue\ti_evalue\tenv_from\tenv_to\tdom_bitscore\n")
+            # Write header to the temporary file
+            with open(tmp_file, 'w') as f:
+                f.write("sequence_id\thmm_name\tbitscore\tevalue\tc_evalue\ti_evalue\tenv_from\tenv_to\tdom_bitscore\n")
 
         # Group HMMs by their best available cutoff
         hmm_groups = {}
@@ -125,12 +135,37 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
                 del kwargs['preferred_cutoff']  # Remove this as it's not a valid pyhmmer parameter
 
             for hits in pyhmmer.hmmsearch(hmm_group, sequences, cpus=threads, **kwargs):
-                process_hits(hits, tmp_file)
+                if use_memory:
+                    results_data.extend(process_hits_to_memory(hits))
+                else:
+                    process_hits_to_file(hits, tmp_file)
 
-    return tmp_dir
+    return results_data if use_memory else tmp_dir
 
 
-def process_hits(hits, tmp_file):
+def process_hits_to_memory(hits):
+    results = []
+    cog = hits.query_name.decode()
+    for hit in hits:
+        if hit.included:
+            hit_name = hit.name.decode()
+            full_bitscore = hit.score
+            full_evalue = hit.evalue
+            for domain in hit.domains.reported:
+                results.append({
+                    'sequence_id': hit_name,
+                    'hmm_name': cog,
+                    'bitscore': full_bitscore,
+                    'evalue': full_evalue,
+                    'c_evalue': domain.c_evalue,
+                    'i_evalue': domain.i_evalue,
+                    'env_from': domain.env_from,
+                    'env_to': domain.env_to,
+                    'dom_bitscore': domain.score
+                })
+    return results
+
+def process_hits_to_file(hits, tmp_file):
     cog = hits.query_name.decode()
     with open(tmp_file, 'a') as f:
         for hit in hits:
@@ -411,24 +446,42 @@ def create_temp_directory(outdir):
     os.makedirs(temp_dir, exist_ok=True)
     return temp_dir
 
-def combine_results(tmp_dir, output_file):
-    all_results = []
-    for filename in os.listdir(tmp_dir):
-        if filename.endswith('_results.tsv'):
-            file_path = os.path.join(tmp_dir, filename)
-            df = pd.read_csv(file_path, sep='\t')
-            print(f"Sample from {filename}:")
-            print(df.head().to_string())  # This will print the first few rows
-            all_results.append(df)
-
-    if all_results:
-        combined_df = pd.concat(all_results, ignore_index=True).sort_values(by=['sequence_id', 'env_from'], ascending=[True, True])
-        combined_df.to_csv(output_file, sep='\t', index=False)
-        print(f"Combined results written to {output_file}")
-        print("Sample from combined results:")
-        print(combined_df.head().to_string())  # This will print the first few rows of the combined results
+def combine_results(results_source, output_file):
+    """Combine results either from memory or temp files into a single output file
+    
+    Args:
+        results_source: Either a directory path (str) or list of result dictionaries
+        output_file: Path to write the combined results
+    """
+    if isinstance(results_source, str):
+        # Process from temp directory
+        all_results = []
+        for filename in os.listdir(results_source):
+            if filename.endswith('_results.tsv'):
+                file_path = os.path.join(results_source, filename)
+                df = pd.read_csv(file_path, sep='\t')
+                print(f"Sample from {filename}:")
+                print(df.head().to_string())
+                all_results.append(df)
+        
+        if all_results:
+            combined_df = pd.concat(all_results, ignore_index=True)
+        else:
+            print("No results found to combine.")
+            return
     else:
-        print("No results found to combine.")
+        # Process from memory
+        if not results_source:
+            print("No results found to combine.")
+            return
+        combined_df = pd.DataFrame(results_source)
+    
+    # Sort and save results
+    combined_df = combined_df.sort_values(by=['sequence_id', 'env_from'], ascending=[True, True])
+    combined_df.to_csv(output_file, sep='\t', index=False)
+    print(f"Combined results written to {output_file}")
+    print("Sample from combined results:")
+    print(combined_df.head().to_string())
 
 def main(args):
     t1 = time.time()
@@ -475,10 +528,10 @@ def main(args):
         print("Searching with user-provided HMM(s)...")
         logging.info("Searching with user-provided HMM(s)...")
         user_hmms = parse_hmms(args.hmm_in)
-        tmp_dir = hmmsearch(protein_dict, user_hmms, args.threads, hmmsearch_options)
-        combine_results(tmp_dir, os.path.join(outdir, 'user_hmms_hits_df.tsv'))
-        if args.write_seqs:
-            extract_sequences_from_tmp(tmp_dir, protein_dict, outdir)
+        results = hmmsearch(protein_dict, user_hmms, args.threads, hmmsearch_options)
+        combine_results(results, os.path.join(outdir, 'user_hmms_hits_df.tsv'))
+        if args.write_seqs and isinstance(results, str):  # Only if using temp files
+            extract_sequences_from_tmp(results, protein_dict, outdir)
         del user_hmms
 
     if args.installed_hmms is not None:
