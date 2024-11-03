@@ -1,13 +1,14 @@
 
 import os
 import sys
+import time
+import logging
 import argparse
 import pandas as pd
-import numpy as np
-from typing import Dict, List, Union
+from tqdm import tqdm
 import pyhmmer
-import subprocess
 import collections
+from typing import Dict, List, Union, Tuple
 import shutil
 from astra import initialize
 from tqdm import tqdm
