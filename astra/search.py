@@ -422,7 +422,7 @@ def combine_results(tmp_dir, output_file):
             all_results.append(df)
 
     if all_results:
-        combined_df = pd.concat(all_results, ignore_index=True)
+        combined_df = pd.concat(all_results, ignore_index=True).sort_values(by=['sequence_id', 'env_from'], ascending=[True, True])
         combined_df.to_csv(output_file, sep='\t', index=False)
         print(f"Combined results written to {output_file}")
         print("Sample from combined results:")
