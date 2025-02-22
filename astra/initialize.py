@@ -263,7 +263,6 @@ def add_threshold(hmm_file_path, threshold):
     return
 
 def install_databases(db_name, parsed_json=None, db_path=None):
-
     # Are you trying to install KOFAM? Let's have separate logic for that.
     if db_name == 'KOFAM':
         return install_KOFAM()
@@ -287,7 +286,9 @@ def install_databases(db_name, parsed_json=None, db_path=None):
                 print(f"Database {db_name} already installed.")
                 continue
 
-            target_folder = os.path.abspath(os.path.join(db_path, db_name))
+            # Use os.path.expanduser to get the proper path
+            target_folder = os.path.join(os.path.expanduser("~/.config/Astra"), db_name)
+            print(target_folder)
 
             if os.path.exists(target_folder) and os.listdir(target_folder):
                 print(f"Folder for {db_name} exists and is not empty. Skipping download.")
