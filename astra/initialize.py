@@ -16,6 +16,9 @@ import requests
 from tqdm import tqdm
 from shutil import copyfile
 
+# Define package directory path
+package_dir = os.path.dirname(os.path.abspath(__file__))
+
 
 class TqdmUpTo(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
@@ -27,9 +30,9 @@ def initialize_config():
     app_name = "Astra"
     app_author = "YourOrg"  # Replace with the actual name of your organization or app author
 
-    # The default directory for the HMM databases.json (inside the package directory)
-    package_dir = os.path.dirname(os.path.abspath(__file__))
-    default_db_json_path = os.path.join(user_config_dir(app_name, app_author), 'hmm_databases.json')
+    # Use os.path.expanduser to get the proper config path
+    config_dir = os.path.expanduser("~/.config/Astra")
+    default_db_json_path = os.path.join(config_dir, 'hmm_databases.json')
 
     # Check if hmm_databases.json exists in the user's config directory
     if not os.path.exists(default_db_json_path):
@@ -39,7 +42,7 @@ def initialize_config():
         # Check if hmm_databases.json exists in the repository/package directory
         if os.path.exists(repo_db_json_path):
             # Copy hmm_databases.json from the repository/package directory to the user's config directory
-            os.makedirs(os.path.dirname(default_db_json_path), exist_ok=True)  # Ensure the directory exists
+            os.makedirs(config_dir, exist_ok=True)  # Ensure the directory exists
             copyfile(repo_db_json_path, default_db_json_path)
             print(f"'hmm_databases.json' copied to {default_db_json_path}")
         else:
@@ -56,9 +59,9 @@ def load_config():
     app_name = "Astra"
     app_author = "YourOrg"  # Replace with the actual name of your organization or app author
 
-    # The default directory for the HMM databases.json (inside the package directory)
-    package_dir = os.path.dirname(os.path.abspath(__file__))
-    default_db_json_path = os.path.join(user_config_dir(app_name, app_author), 'hmm_databases.json')
+    # Use os.path.expanduser to get the proper config path
+    config_dir = os.path.expanduser("~/.config/Astra")
+    default_db_json_path = os.path.join(config_dir, 'hmm_databases.json')
 
     # Attempt to load the existing hmm_databases.json
     if os.path.exists(default_db_json_path):
@@ -85,6 +88,9 @@ def load_config():
         # Update the hmm_databases.json file with the new db_path
         with open(default_db_json_path, 'w') as f:
             json.dump(hmm_databases, f)
+    
+    # Always ensure db_path is properly expanded
+    hmm_databases['db_path'] = os.path.expanduser(hmm_databases['db_path'])
 
     return hmm_databases
 
@@ -139,7 +145,8 @@ def install_KOFAM():
     db_name = 'KOFAM'
     parsed_json = load_config()
     config = load_config()
-    db_path = config['db_path']    
+    db_path = os.path.expandvars(os.path.expanduser(config['db_path']))
+    print('DB PATH IN INSTALL_KOFAM: {}'.format(db_path))
 
 
     for db in parsed_json['db_urls']:
@@ -153,7 +160,7 @@ def install_KOFAM():
             print("Database {} already installed.".format(db['name']))
             continue
         if db['name'] == db_name:
-            target_folder = os.path.abspath(os.path.join(db_path, db_name))  # Use absolute path
+            target_folder = os.path.expanduser(os.path.join(db_path, db_name))
             
             os.makedirs(target_folder, exist_ok=True)
             
@@ -286,15 +293,15 @@ def install_databases(db_name, parsed_json=None, db_path=None):
                 print(f"Database {db_name} already installed.")
                 continue
 
-            # Use os.path.expanduser to get the proper path
-            target_folder = os.path.join(os.path.expanduser("~/.config/Astra"), db_name)
+            # Use the config directory path for database installation
+            target_folder = os.path.expandvars(os.path.expanduser(os.path.join(db_path, db_name)))
             print(target_folder)
 
             if os.path.exists(target_folder) and os.listdir(target_folder):
                 print(f"Folder for {db_name} exists and is not empty. Skipping download.")
                 if not db.get('installation_dir'):
                     db['installation_dir'] = target_folder
-                    update_required = False
+                    update_required = True
                 continue
 
             # Create target directory if it does not exist
@@ -388,9 +395,9 @@ def install_databases(db_name, parsed_json=None, db_path=None):
 
 
     if update_required:
-        print(db_path)
-        # Update the JSON file outside the loop to reflect the installed status and installation_dir
-        json_path = os.path.join(db_path, 'hmm_databases.json')
+        # Update the JSON file in the config directory
+        config_dir = os.path.expanduser("~/.config/Astra")
+        json_path = os.path.join(config_dir, 'hmm_databases.json')
         with open(json_path, 'w') as f:
             json.dump(parsed_json, f, indent=4)
 
