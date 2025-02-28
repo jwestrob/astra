@@ -145,9 +145,11 @@ def hmmsearch(protein_dict, hmms, threads, options, db_name=None):
     return results_data if use_memory else tmp_dir
 
 
-def process_hits_to_memory(hits):
+def process_hits_to_memory(hits):                    
+    
     results = []
-    cog = hits.query_name.decode()
+    cog = hits.query.name.decode()
+
     for hit in hits:
         if hit.included:
             hit_name = hit.name.decode()
@@ -497,6 +499,10 @@ def main(args):
         if args.write_seqs:
             os.makedirs(os.path.join(outdir, 'fastas'))
 
+    # Create temporary directory for results
+    tmp_results_dir = os.path.join(outdir, 'tmp_results')
+    os.makedirs(tmp_results_dir, exist_ok=True)
+
     logging.basicConfig(filename=log_file_path, level=logging.INFO,
                         format='%(asctime)s %(levelname)s: %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
@@ -559,8 +565,9 @@ def main(args):
                 print(f"No installation_dir specified for db {hmm_db}")
                 logging.info(f"No installation_dir specified for db {hmm_db}")
 
-    # Clean up temporary directory
-    cleanup_temp_files(os.path.join(outdir, 'tmp_results'))
+    # Clean up temporary directory if it exists
+    if os.path.exists(os.path.join(outdir, 'tmp_results')):
+        cleanup_temp_files(os.path.join(outdir, 'tmp_results'))
 
     time_printout = f"Process took {time.time()-t1} seconds."
     print(time_printout)
