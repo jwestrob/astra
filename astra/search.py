@@ -170,7 +170,7 @@ def process_hits_to_memory(hits):
     return results
 
 def process_hits_to_file(hits, tmp_file):
-    cog = hits.query_name.decode()
+    cog = hits.query.name.decode()
     with open(tmp_file, 'a') as f:
         for hit in hits:
             if hit.included:
